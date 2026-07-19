@@ -123,7 +123,37 @@ Four commitments define how that translates into practice:
 - **Numbers are the hero, not illustrations.** Where Nike Training Club uses large lifestyle photography to create mood, Vikzar creates mood through typography and data — a risk score rendered at Display size *is* the hero image.
 - **Nothing playful, nothing clinical.** The tone sits deliberately between a consumer fitness app (too playful for injury data) and a hospital dashboard (too cold for a locker room). Rounded-but-restrained corners, warm-but-muted accent colours, and calm motion keep it human without undermining trust.
 
-## 4. Visual Language
+### Permanent Design Principle (added Phase 5)
+
+The following is binding, verbatim, on every screen this product will ever ship — not a restatement of the four commitments above, their governing law:
+
+> The Vikzar interface should appear carved from darkness.
+>
+> Large uninterrupted Plum Black surfaces should dominate.
+>
+> Colour exists only to communicate meaning.
+>
+> Never decorate with colour.
+>
+> Every coloured element must have purpose.
+>
+> Interfaces should feel engineered rather than decorative.
+>
+> Motion should communicate continuity, not excitement.
+>
+> Depth should come from spacing, subtle blur, elevation and shadow.
+>
+> Glass effects should remain restrained and used only where hierarchy benefits.
+>
+> Users should feel calm, focused and in control.
+
+**How this constrains every future decision:**
+- **"Colour exists only to communicate meaning… never decorate"** is the strongest, most falsifiable rule added to this document — any future component, screen, or ADR that introduces colour for visual interest alone (not to distinguish a state, an action, or a hierarchy level) fails this principle, full stop.
+- **"Large uninterrupted Plum Black surfaces should dominate"** rules out the light card / bordered-panel pattern this document previously left open as a hypothetical (e.g. a light card to host the two-colour logo lockup, [§19.1](#191-onboarding-flow)) — that pattern is now explicitly out, reinforcing the decision already made in code to keep every Phase 5 screen full-bleed Plum Black.
+- **"Glass effects should remain restrained and used only where hierarchy genuinely benefits"** authorizes blur/translucency as a tool, but narrowly: it is never a default treatment for a surface, only a deliberate choice at a specific hierarchy boundary (e.g. a bottom sheet floating over content it partially reveals) — see the Auth screen's field treatment in [§19.1](#191-onboarding-flow) for the one Phase 5 use.
+- **"Motion should communicate continuity, not excitement"** is fully consistent with, and reinforces, the existing [§12](#12-motion-principles) motion system (200ms cross-fades, no bounce/spring physics) — no change required there.
+
+
 
 | Quality | Vikzar Expression |
 |---|---|
@@ -188,6 +218,21 @@ Full behavioral detail per screen is in [§21](#21-responsive-behaviour).
 
 ## 8. Colour Usage Rules
 
+### Colour Philosophy (frozen, Phase 5)
+
+The following role assignment is now the single source of truth for what each brand colour *means*. It **swaps** the Primary/Secondary accent assignment from the original Phase 2 draft below — Oxide Rose is now the primary action colour, Mineral Blue the secondary informational accent — per explicit direction at Phase 5. Every table in this section has been updated to match; nothing here is aspirational or pending.
+
+| Role | Token |
+|---|---|
+| Primary background | Plum Black |
+| Primary surfaces | Graphite Ink |
+| Primary text | Warm Ivory |
+| Primary action | Oxide Rose |
+| Secondary informational accent | Mineral Blue |
+| Critical safety events only | Alert Crimson |
+
+**No gradients. No decorative colours. No neon.** This is a closed set — six roles, five official colours plus the one sanctioned Critical exception. Nothing outside this set is introduced without a new, explicit decision, per the [Permanent Design Principle](#permanent-design-principle-added-phase-5) added this phase: colour exists only to communicate meaning.
+
 ### Core Roles (Dark Theme — Primary)
 
 | Role | Token | Notes |
@@ -198,8 +243,8 @@ Full behavioral detail per screen is in [§21](#21-responsive-behaviour).
 | Primary text | Warm Ivory `#F2E9E7` at 100% | |
 | Secondary text | Warm Ivory at 64% opacity | Metadata, captions, helper text |
 | Disabled text | Warm Ivory at 32% opacity | |
-| Primary accent / interactive | Mineral Blue `#597C80` | Primary buttons, active nav state, links, primary data series in charts |
-| Secondary accent | Oxide Rose `#9E5C55` | Secondary CTAs used sparingly, key highlighted numbers, secondary data series |
+| Primary action / interactive | **Oxide Rose** `#9E5C55` | Primary buttons, active nav state, links, focus states |
+| Secondary informational accent | **Mineral Blue** `#597C80` | Secondary CTAs used sparingly, informational badges, secondary/primary data series in charts (data visualization is an informational context — see note below) |
 | Divider / hairline | Warm Ivory at 8% opacity | |
 
 ### Core Roles (Light Theme)
@@ -210,25 +255,29 @@ Full behavioral detail per screen is in [§21](#21-responsive-behaviour).
 | Surface | White `#FFFFFF`, with Warm Ivory as the base plane beneath it |
 | Primary text | Plum Black `#17131E` at 100% |
 | Secondary text | Plum Black at 64% |
-| Primary accent | Mineral Blue (unchanged — verified for AA contrast on white, see [§20](#20-accessibility)) |
-| Secondary accent | Oxide Rose (unchanged, same verification) |
+| Primary action | Oxide Rose (unchanged — verified for AA contrast on white, see [§20](#20-accessibility)) |
+| Secondary informational accent | Mineral Blue (unchanged, same verification) |
 
-### Risk & Status Semantic Colours (Approved, Phase 2 Freeze)
+**Note on charts specifically:** because a chart is an *informational*, not an *action*, context, Mineral Blue — not Oxide Rose — remains the natural default/primary line colour when a chart needs one dominant series, with Oxide Rose reserved for a genuinely secondary series or an action affordance layered on the chart (e.g. a tap target). No chart exists in the codebase yet (no MVP screen in this phase renders one); this note exists so the first implementation gets it right without re-deriving the reasoning.
 
-The five brand colours are deliberately muted — appropriate for a calm, trustworthy interface, but insufficient on their own to make a **Critical** safety alert unambiguous. **Alert Crimson is the one sanctioned exception to the official five-colour palette, approved at the Phase 2 freeze review, reserved exclusively for Critical risk-level indicators.** It is not a general-purpose error or destructive-action colour — see the scoping rule below.
+### Risk & Status Semantic Colours (Approved, Phase 2 Freeze — flagged for revisit)
+
+The five brand colours are deliberately muted — appropriate for a calm, trustworthy interface, but insufficient on their own to make a **Critical** safety alert unambiguous. **Alert Crimson is the one sanctioned exception to the official five-colour palette, approved at the Phase 2 freeze review, reserved exclusively for Critical risk-level indicators** — this remains true and is explicitly reaffirmed by Phase 5's colour philosophy above ("Critical safety events only").
 
 | Risk / Status Level | Colour | Hex | Rationale |
 |---|---|---|---|
-| Normal / Low | Mineral Blue | `#597C80` | Reuses the calm primary accent — "nothing to worry about" should look like the rest of the calm interface |
-| Elevated / Moderate | Oxide Rose | `#9E5C55` | Reuses the warm secondary accent — draws attention without alarm; standard tinted-chip treatment (16% fill), per [§18](#18-component-library) |
-| High | Oxide Rose | `#9E5C55` | Same official colour as Elevated, differentiated by **weight, not hue**: a filled chip (100% Oxide Rose fill, Warm Ivory label) instead of a tinted chip, Label-weight text bolded, and a filled (not outlined) icon. This keeps High within the official five-colour palette while remaining unmistakably more serious than Elevated, per UX Principle 2 (colour never carries meaning alone — weight and fill do the differentiating work here) |
-| Critical | **Alert Crimson** | `#C4432E` | The sole approved exception to the five-colour palette. Per UX Principle 1 and Product Principle 2 (player safety before all else), a Critical state must never be visually confusable with a calm brand accent. **Scope:** Alert Crimson is used *only* for Critical risk-level indicators — the risk ring/chip, the persistent Critical alert banner/dialog, and Critical entries in the Alert Inbox. It is never used for generic form-validation errors or destructive-action buttons — those remain Oxide Rose (see [§18](#18-component-library)), preserving Alert Crimson's rarity and, with it, its effectiveness as a dedicated safety signal |
+| Normal / Low | Mineral Blue | `#597C80` | Reuses the calm secondary/informational accent — "nothing to worry about" should look like the rest of the calm interface |
+| Elevated / Moderate | Oxide Rose | `#9E5C55` | Reuses the warm accent; standard tinted-chip treatment (16% fill), per [§18](#18-component-library) |
+| High | Oxide Rose | `#9E5C55` | Same colour as Elevated, differentiated by **weight, not hue**: a filled chip instead of a tinted chip, bolded label, filled icon |
+| Critical | **Alert Crimson** | `#C4432E` | Scoped exclusively to Critical risk-level indicators — never generic errors or destructive actions, which use Oxide Rose (see [§18](#18-component-library)) |
+
+**⚠ Flagged tension, not resolved in this pass:** Oxide Rose is now simultaneously "Primary Action" (this section, above) *and* the colour for Elevated/High risk status. Under Phase 2's framing this was a defensible reuse (a calm accent doing double duty); under Phase 5's stronger discipline ("every coloured element must have purpose," "never decorate") a status chip and a primary button sharing a hue is worth re-examining once risk-level UI is actually built. No Live Monitoring, session, or risk-display screen exists yet in this codebase — this phase builds Authentication and Workspace Selection only — so this is recorded as an open item for whichever phase implements risk UI, rather than redesigned speculatively now. See [Open Questions](#open-questions).
 
 **Rule:** risk-level colour is always paired with a text label (`Normal` / `Elevated` / `High` / `Critical`) and an icon, per UX Principle 2 and [§20](#20-accessibility). Colour alone is never load-bearing.
 
 ### Usage Ratios
 
-Roughly 70% neutral (background/surface/text), 20% Mineral Blue, 8% Oxide Rose, 2% Alert Crimson (reserved exclusively for Critical risk states — its rarity is what makes it effective). If Alert Crimson appears on a screen, it should be the only saturated colour-of-concern on that screen.
+Roughly 70% neutral (background/surface/text), 20% Oxide Rose, 8% Mineral Blue, 2% Alert Crimson (reserved exclusively for Critical risk states — its rarity is what makes it effective). If Alert Crimson appears on a screen, it should be the only saturated colour-of-concern on that screen.
 
 ## 9. Elevation Rules
 
@@ -261,7 +310,7 @@ Radius scales with size — larger surfaces get proportionally larger radii, but
 - **Base set:** Material Symbols, **Outlined** style only (never Filled, Rounded, or Sharp variants) — consistent with the calm, precise, unfilled aesthetic; a filled icon set would read as louder and more consumer-app than Vikzar's instrument-panel identity.
 - **Stroke weight:** 1.5–2dp, consistent across all icons at a given size.
 - **Standard sizes:** 20dp (inline with Body text), 24dp (nav, buttons), 32dp (empty-state and card-header icons).
-- **Active state:** an active/selected icon (e.g., in bottom nav) switches from Outlined to a filled version of the *same* glyph plus the Mineral Blue accent color — never a different glyph.
+- **Active state:** an active/selected icon (e.g., in bottom nav) switches from Outlined to a filled version of the *same* glyph plus the Oxide Rose accent color (primary action/interactive role, per [§8](#8-colour-usage-rules)'s Phase 5 colour philosophy) — never a different glyph.
 - **Custom icon needs (flagged for bespoke design, not covered by Material Symbols):** the Vikzar Pod glyph, the EMG Thigh Band glyph, a "Risk Level" ring/shield glyph family (Normal/Elevated/High/Critical), and an "Impact Event" glyph. These four are noted in Open Questions as requiring dedicated icon design before Phase 3.
 
 ## 12. Motion Principles
@@ -470,9 +519,9 @@ Every component is token-driven ([§5](#5-typography-system)–[§10](#10-corner
 
 | Variant | Shape | Fill | Usage |
 |---|---|---|---|
-| Primary | `radius-pill` | Mineral Blue fill, Warm Ivory label | One per screen, the single most important action |
+| Primary | `radius-pill` | Oxide Rose fill, Warm Ivory label | One per screen, the single most important action (primary action colour, per [§8](#8-colour-usage-rules)'s Phase 5 colour philosophy — swapped from Mineral Blue) |
 | Secondary | `radius-pill` | Transparent, 1dp Warm Ivory 24%-opacity border, Warm Ivory label | Supporting actions alongside a primary |
-| Tertiary / Text | none | No fill, no border, Mineral Blue label | Low-emphasis actions ("Skip", "Edit") |
+| Tertiary / Text | none | No fill, no border, Oxide Rose label | Low-emphasis actions ("Skip", "Edit") — still an action, so it uses the action colour, differentiated from Primary by weight/fill (text-only vs. filled pill), not hue |
 | Destructive | `radius-pill` | Transparent border in Oxide Rose, Oxide Rose label | Rare — account deletion, discarding a session. Uses Oxide Rose, not Alert Crimson: Alert Crimson is reserved exclusively for Critical risk-level indicators (see [§8](#8-colour-usage-rules)) |
 
 States: default, pressed (−8% brightness), disabled (32% opacity, no interaction), loading (label replaced by a small inline spinner, button width unchanged to avoid layout shift). Minimum touch target 48×48dp regardless of visual size ([§20](#20-accessibility)).
@@ -491,7 +540,7 @@ All cards use `space-16` internal padding except Player Card (Live Monitoring), 
 
 ### Text Fields
 
-`radius-sm`, 1dp border (Warm Ivory 24% opacity, Mineral Blue at 100% when focused), label floats above on focus/fill (never a placeholder-only field — accessibility rule, [§20](#20-accessibility)), helper/error text in Caption size below. Error state: border and helper text in Oxide Rose (not Alert Crimson, which is reserved for Critical risk states — see [§8](#8-colour-usage-rules)).
+`radius-sm`, 1dp border (Warm Ivory 24% opacity, Oxide Rose at 100% when focused — primary action colour, per [§8](#8-colour-usage-rules)'s Phase 5 colour philosophy), label floats above on focus/fill (never a placeholder-only field — accessibility rule, [§20](#20-accessibility)), helper/error text in Caption size below. Error state: border and helper text also in Oxide Rose, distinguished from the focus state by the accompanying error copy and icon (not Alert Crimson, which is reserved for Critical risk states — see [§8](#8-colour-usage-rules)).
 
 ### Search
 
@@ -511,11 +560,11 @@ The single, formal component behind every plain-row content list in the product 
 
 ### Segment Controls
 
-`radius-pill` outer container, individual segments `radius-pill` minus 2dp inset, active segment filled Mineral Blue. Used for the Sessions/Analysis tabs (History) and Roster/History tabs (Team) — note these are visually **segment controls at the top of the screen**, not a Material `TabBar` underline style, to match the calm, contained aesthetic over the more conventional underlined-tab look.
+`radius-pill` outer container, individual segments `radius-pill` minus 2dp inset, active segment filled Oxide Rose (primary action colour, per [§8](#8-colour-usage-rules)'s Phase 5 colour philosophy). Used for the Sessions/Analysis tabs (History) and Roster/History tabs (Team) — note these are visually **segment controls at the top of the screen**, not a Material `TabBar` underline style, to match the calm, contained aesthetic over the more conventional underlined-tab look.
 
 ### Bottom Navigation
 
-4 items (Player) or 5 items (Coach), fixed height, icon (24dp, Outlined) + Label (12dp Caption-weight) per item. Active item: filled icon variant + Mineral Blue tint on both icon and label. Inactive: Outlined icon, Warm Ivory 64%.
+4 items (Player) or 5 items (Coach), fixed height, icon (24dp, Outlined) + Label (12dp Caption-weight) per item. Active item: filled icon variant + Oxide Rose tint on both icon and label (primary action colour, per [§8](#8-colour-usage-rules)'s Phase 5 colour philosophy). Inactive: Outlined icon, Warm Ivory 64%.
 
 ### Top Bars
 
@@ -551,7 +600,7 @@ Elevation 2, `radius-sm`, bottom-anchored, auto-dismiss 4s (except when it conta
 
 ### Loading Indicators
 
-A single circular indeterminate spinner (Mineral Blue) for short waits (<2s expected); skeleton-loading card shapes (pulsing 8%↔4% overlay) for screen-level content loads (Home, Live Monitoring, History) — skeletons preserve layout position so the screen doesn't jump when data arrives.
+A single circular indeterminate spinner (Oxide Rose — primary action colour, per [§8](#8-colour-usage-rules)'s Phase 5 colour philosophy) for short waits (<2s expected); skeleton-loading card shapes (pulsing 8%↔4% overlay) for screen-level content loads (Home, Live Monitoring, History) — skeletons preserve layout position so the screen doesn't jump when data arrives.
 
 ### Empty States
 
@@ -678,7 +727,7 @@ Same layout skeleton as Player Profile, with Coach Profile fields (Role/Title, C
 - **Dynamic type:** the type scale ([§5](#5-typography-system)) supports OS-level text scaling up to at least 130% without truncation — card layouts use flexible/wrapping text, never fixed single-line truncation for primary content (Caption/metadata may truncate with ellipsis where truly secondary).
 - **Screen readers:** every icon-only control has a semantic label (VoiceOver/TalkBack); the risk Ring/Gauge chart exposes its value as text, not just a visual arc; live-updating regions (Live Team Monitoring cards) use polite (not assertive) live-region announcements to avoid overwhelming a screen-reader user with once-per-second updates — a Critical alert is the one exception, announced assertively.
 - **Motion sensitivity:** every animation in [§12](#12-motion-principles) has a reduced-motion fallback tied to the OS setting.
-- **Keyboard/focus (desktop):** all interactive elements have a visible focus ring (2dp Mineral Blue outline, `radius` matching the element) for keyboard and switch-control navigation on macOS/Windows/Linux.
+- **Keyboard/focus (desktop):** all interactive elements have a visible focus ring (2dp Oxide Rose outline — primary action colour, per [§8](#8-colour-usage-rules)'s Phase 5 colour philosophy — `radius` matching the element) for keyboard and switch-control navigation on macOS/Windows/Linux.
 
 ## 21. Responsive Behaviour
 
@@ -722,12 +771,15 @@ Clearly separated from MVP, per this phase's instruction, and consistent with [A
 ## Open Questions
 
 1. **`users/{uid}` multi-workspace data model** — **Resolved at the Phase 2 freeze review.** See [DECISIONS.md ADR-031](DECISIONS.md#adr-031-single-application-with-player-and-coach-workspace-switching) and [BACKEND_SPECIFICATION.md §1.5](BACKEND_SPECIFICATION.md#1-complete-firestore-schema) for the finalized `workspaces` / `defaultWorkspace` schema.
-2. **Typeface licensing confirmation** (Inter vs. an alternative) — should be confirmed before Phase 3 design-token implementation.
-3. **Bespoke icon commissioning** (four glyphs, [§11](#11-iconography-rules)) — needs an owner and timeline before Phase 3.
+2. **Typeface licensing confirmation** (Inter vs. an alternative) — still open as of Phase 5; the type scale continues to render with each platform's default system font (`design_system/tokens/type_scale.dart`) pending this decision.
+3. **Bespoke icon commissioning** (four glyphs, [§11](#11-iconography-rules)) — needs an owner and timeline; not yet commissioned as of Phase 5.
 4. **Coach "Add Player" / team invite flow detail** — flagged in [§19.3](#193-coach-workspace-screens) as out of this document's current wireframe depth; needs a dedicated flow pass before Roadmap Phase 9 (Team Management) implementation.
-5. **Exact copy/microcopy pass** — this document specifies headline/body *content intent* and representative copy, not final, legally- and tone-reviewed strings; a copy pass is expected before Phase 3.
+5. **Exact copy/microcopy pass** — this document specifies headline/body *content intent* and representative copy, not final, legally- and tone-reviewed strings; a copy pass is expected before wider rollout.
+6. **Elevated/High risk colour reuse of Oxide Rose** — flagged in [§8](#8-colour-usage-rules)'s Risk & Status Semantic Colours table as a tension with Phase 5's "Oxide Rose = Primary Action" role: the same hue currently serves both a primary button and a moderate/high risk status chip. Not resolved in Phase 5 since no risk-display UI exists yet in the codebase; revisit when Live Monitoring or session risk screens are first implemented.
 
 Resolved at the Phase 2 freeze review (previously open, closed by that review): the onboarding screen count/order (now six screens, [§19.1](#191-onboarding-flow)), Alert Crimson brand sign-off (now approved, scoped exclusively to Critical risk states, [§8](#8-colour-usage-rules)), and the List Row component gap (now specified, [§18](#18-component-library)).
+
+Resolved at Phase 5: the official logo/icon SVG assets are now imported and in use ([§19.1](#191-onboarding-flow)); the Primary/Secondary accent colour role assignment is frozen (Oxide Rose = primary action, Mineral Blue = secondary informational accent, [§8](#8-colour-usage-rules)).
 
 ## Document Control
 

@@ -14,6 +14,14 @@ include: package:flutter_lints/flutter.yaml
 # of "quietly wrong" code (implicit dynamic, unchecked casts, raw generic
 # types) fails analysis rather than passing review by omission.
 analyzer:
+  # `build/` can accumulate vendored native-SDK source (e.g. Firebase's
+  # Swift Package Manager checkout for macOS/iOS under
+  # `build/macos/SourcePackages/`), including that SDK's own test files —
+  # none of it is this project's code, and it is already gitignored.
+  # Excluded explicitly since `build/` is not implicitly excluded from
+  # analysis the way `.dart_tool/` is.
+  exclude:
+    - build/**
   language:
     strict-casts: true
     strict-inference: true

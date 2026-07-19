@@ -331,3 +331,49 @@ users/{uid}
 
 This supersedes the `role` field definition in [BACKEND_SPECIFICATION.md §1.5](BACKEND_SPECIFICATION.md#1-complete-firestore-schema), which is updated to match.
 - **Date:** 2026-07-19 (updated 2026-07-19, Phase 2 freeze review)
+
+> **Numbering note:** [FLUTTER_ARCHITECTURE.md §20](FLUTTER_ARCHITECTURE.md#20-architecture-decisions) reserves ADR-032 through ADR-038 for seven Phase 3 decisions still awaiting approval — they are not yet recorded here. To avoid colliding with that reserved range, the Phase 5 ADRs below resume numbering at **ADR-039**. Whenever ADR-032–038 are formally approved and recorded, they slot in at their original numbers ahead of these; no renumbering of ADR-039 onward is needed since the reserved range is already accounted for.
+
+### ADR-039: Colour Philosophy Freeze — Oxide Rose as Primary Action, Mineral Blue as Secondary Informational Accent
+
+- **Decision ID:** ADR-039
+- **Decision:** Vikzar's primary action/interactive colour is **Oxide Rose** (buttons, active states, focus rings, primary CTAs) and its secondary informational accent is **Mineral Blue** (charts, informational badges, non-primary interactive detail). This swaps the roles Phase 2A/Phase 4 had implicitly assumed (Mineral Blue as primary). Alert Crimson remains reserved exclusively for critical safety events. No gradients, no decorative colour use, no neon — colour exists only to communicate meaning, per the Permanent Design Principle recorded this phase in [DESIGN_SPECIFICATION.md §3](DESIGN_SPECIFICATION.md#3-design-philosophy).
+- **Reason:** Explicit product direction this phase: the interface should read as "carved from darkness," with colour appearing only with purpose. Oxide Rose (a warm, muted rose-red) reads as an intentional, singular call to action against Plum Black in a way a cooler, more ambient blue does not — it is more distinguishable from informational/status colour and better reserved for "the one thing to do on this screen." Mineral Blue moving to secondary/informational keeps it available for charts and status detail without competing with the primary action colour for attention.
+- **Alternatives Considered:** Leaving Mineral Blue as primary (the Phase 2A/4 status quo) — rejected per explicit direction this phase. Introducing a third, new accent colour for primary actions rather than repurposing an existing frozen colour — rejected as it would grow the palette rather than sharpen the existing one, contrary to the Permanent Design Principle's "colour exists only to communicate meaning" constraint.
+- **Status:** Accepted
+- **Date:** 2026-07-19
+
+**Flagged, not resolved:** Oxide Rose now double-duties as both the Primary Action colour and the Elevated/High risk-status colour in the frozen Risk & Status Semantic Colours table ([DESIGN_SPECIFICATION.md §8](DESIGN_SPECIFICATION.md#8-colour-system)). No risk-display UI exists yet in the codebase (out of scope for this phase), so the collision has no present consequence, but it must be resolved — likely by giving risk status its own colour — before any risk-display screen is built. **Documented in full in:** [DESIGN_SPECIFICATION.md §3](DESIGN_SPECIFICATION.md#3-design-philosophy) and [§8](DESIGN_SPECIFICATION.md#8-colour-system).
+
+### ADR-040: Single-Screen Sign-In-or-Create-Account Authentication Flow
+
+- **Decision ID:** ADR-040
+- **Decision:** Vikzar's authentication screen is a single email/password form with one "Continue" action — there is no separate Sign In / Sign Up toggle or screen. On submit, the app attempts sign-in first; if it fails because no account exists for that email (`user-not-found`, or `invalid-credential` on Firebase Auth SDK versions that no longer distinguish "wrong password" from "no such user"), the app creates the account instead. A wrong password for an existing account still surfaces as "incorrect password" rather than silently attempting (and failing) account creation.
+- **Reason:** Reduces the identity flow to the minimum number of decisions a user makes before reaching the product (Principle 5: frictionless onboarding), and removes an entire screen/branch of UI for a distinction (new vs. returning user) the product does not need the user to declare — the backend can determine it. Generous spacing and a single calm form also serve the Permanent Design Principle recorded this phase.
+- **Alternatives Considered:** Separate Sign In and Sign Up screens/tabs (the conventional pattern) — rejected as an unnecessary extra decision point for MVP scope. Attempting account creation first, falling back to sign-in — rejected because it inverts the more common case (returning users) into the slower path, and because Firebase Auth's `email-already-in-use` error is a less reliable signal across SDK versions than `user-not-found`/`invalid-credential` is for the chosen order.
+- **Status:** Accepted
+- **Date:** 2026-07-19
+
+**Documented in full in:** [`auth_repository_impl.dart`](lib/features/auth/data/repositories/auth_repository_impl.dart), [DESIGN_SPECIFICATION.md §19.1](DESIGN_SPECIFICATION.md#191-onboarding-flow).
+
+### ADR-041: Workspace Selection Writes Only Local Device State in the MVP Bootstrap
+
+- **Decision ID:** ADR-041
+- **Decision:** The Workspace Selection screen built this phase (Player or Coach) writes only the local, on-device active-workspace pointer (via `ActiveWorkspaceStore`/`activeWorkspaceProvider`, per [ADR-031](#adr-031-single-application-with-player-and-coach-workspace-switching)) when the user makes a selection. It does not call any Cloud Function and does not write to `users/{uid}.workspaces` or `users/{uid}.defaultWorkspace` in Firestore.
+- **Reason:** [BACKEND_SPECIFICATION.md](BACKEND_SPECIFICATION.md) specifies `workspaces`/`defaultWorkspace` as Cloud-Function-written, not client-writable — that mutation belongs to the join-team/create-team onboarding flow ([ADR-038](FLUTTER_ARCHITECTURE.md#20-architecture-decisions), proposed), which this phase is explicitly scoped to *not* build. Confining this phase's Workspace Selection screen to the local-only pointer keeps it fully functional as a navigation waypoint (choosing which placeholder to view next) without reaching ahead into onboarding's responsibilities or writing Firestore data through a path that will be replaced once onboarding exists.
+- **Alternatives Considered:** Having Workspace Selection call a stub/placeholder Cloud Function to write `workspaces` directly — rejected as it would require inventing onboarding's data-writing contract ahead of building onboarding itself, risking a mismatch once the real onboarding flow is designed. Deferring Workspace Selection entirely until onboarding ships — rejected because this phase's Identity Flow (Launch → Splash → Authentication → Workspace Selection → onboarding placeholder) explicitly requires the screen to exist and be navigable now.
+- **Status:** Accepted
+- **Date:** 2026-07-19
+
+**Documented in full in:** [`workspace_selection_screen.dart`](lib/features/workspace/presentation/screens/workspace_selection_screen.dart), [`active_workspace_controller.dart`](lib/features/workspace/presentation/controllers/active_workspace_controller.dart).
+
+### ADR-042: Placeholder Firebase Configuration for Pre-Project Development
+
+- **Decision ID:** ADR-042
+- **Decision:** The app initializes Firebase using well-formed but fake `FirebaseOptions` (`PlaceholderFirebaseOptions`, in [`firebase_options_placeholder.dart`](lib/firebase_options_placeholder.dart)) rather than real project credentials, since no Firebase project exists yet. Every Firebase-touching call is routed through the `Result`/`Failure` architecture ([ADR-020](#adr-020-error-handling--typed-resultfailure-pattern)) so a call failing against this placeholder configuration — which every call will, since no backend actually exists behind it — surfaces as a calm, mapped user-facing failure rather than a crash or an unhandled exception.
+- **Reason:** Lets the full authentication/navigation architecture (screens, routing, state management, error handling) be built, tested, and demonstrated end-to-end before a real Firebase project is provisioned, without any code path assuming success is possible. This phase's manual verification confirmed the intended behavior directly: submitting the auth form against the placeholder configuration fails gracefully with "Something went wrong. Please try again." and the router correctly keeps the user on the Auth screen rather than misrouting on a failed sign-in.
+- **Alternatives Considered:** Blocking this phase until a real Firebase project is provisioned — rejected as an unnecessary sequencing dependency; the identity/navigation architecture does not require a live backend to be built or tested correctly. Mocking `FirebaseAuth`/`FirebaseFirestore` at the app-bootstrap level instead of using real (placeholder-configured) SDK instances — rejected as it would leave `Firebase.initializeApp` itself, and the SDKs' real error-handling paths, unexercised.
+- **Status:** Accepted — until real per-flavor Firebase projects are provisioned per [ADR-037](FLUTTER_ARCHITECTURE.md#20-architecture-decisions) (proposed), at which point this is superseded.
+- **Date:** 2026-07-19
+
+**Documented in full in:** [`firebase_options_placeholder.dart`](lib/firebase_options_placeholder.dart), [`bootstrap.dart`](lib/app/bootstrap.dart).

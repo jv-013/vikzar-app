@@ -69,6 +69,8 @@ app.*.map.json
 **/ios/Flutter/flutter_export_environment.sh
 **/ios/ServiceDefinitions.json
 **/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/**/xcshareddata/swiftpm/
+**/macos/**/xcshareddata/swiftpm/
 
 # macOS related
 **/macos/Flutter/GeneratedPluginRegistrant.swift

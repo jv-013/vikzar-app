@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:vikzar/design_system/components/vikzar_icon.dart';
 import 'package:vikzar/design_system/theme/app_theme.dart';
 import 'package:vikzar/features/onboarding/presentation/screens/splash_screen.dart';
 
 void main() {
   group('SplashScreen', () {
-    testWidgets('renders the wordmark and tagline', (tester) async {
+    testWidgets('renders the icon mark and tagline', (tester) async {
       await tester.pumpWidget(
         MaterialApp(theme: AppTheme.dark(), home: const SplashScreen()),
       );
       await tester.pump(); // let the fade-in animation start
 
-      expect(find.text('VIKZAR'), findsOneWidget);
+      expect(find.byType(VikzarIcon), findsOneWidget);
       expect(find.text('Know Every Impact.'), findsOneWidget);
     });
 

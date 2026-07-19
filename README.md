@@ -88,10 +88,10 @@ flutter test
 flutter run -d chrome   # or -d macos, or any connected device
 ```
 
-At this stage the app has exactly one working screen (Splash) — this proves the codebase builds and launches cleanly on every target platform ahead of any feature implementation.
+The app now has a working identity flow: Splash → Authentication (email/password) → Workspace Selection (Player/Coach) → an onboarding placeholder screen. Authentication runs against a placeholder Firebase configuration (no real project is provisioned yet, see [DECISIONS.md ADR-042](DECISIONS.md#adr-042-placeholder-firebase-configuration-for-pre-project-development)), so sign-in attempts fail gracefully rather than succeed — this is expected until a real Firebase project is connected.
 
 ## Status
 
-**Current phase:** Flutter project bootstrap complete. The application now exists as a real Flutter codebase (Android, iOS, macOS, Windows, Linux, Web from one source tree) with the folder structure, design system tokens/theme, and routing scaffolding frozen in [FLUTTER_ARCHITECTURE.md](FLUTTER_ARCHITECTURE.md) and [DESIGN_SPECIFICATION.md](DESIGN_SPECIFICATION.md) implemented. The only working screen is Splash — no authentication, no Firebase, and no feature functionality exist yet; that begins in the next phase.
+**Current phase:** Identity & Access complete (Roadmap [Phase 4 — Authentication](ROADMAP.md#phase-4--authentication)). The application implements full Firebase Authentication (email/password, Firebase project pending), session persistence, the Player/Coach workspace model ([DECISIONS.md ADR-031](DECISIONS.md#adr-031-single-application-with-player-and-coach-workspace-switching)), and complete authentication routing with route guards. The official Vikzar brand marks are imported and in use. No onboarding, Player Home, Coach Home, or other feature functionality exist yet — those begin in the next phases.
 
 See [ROADMAP.md](ROADMAP.md) for what comes next.

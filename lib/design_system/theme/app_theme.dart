@@ -13,18 +13,26 @@ import 'vikzar_text_theme.dart';
 /// §3, "Design Philosophy"); light exists for contexts where dark isn't
 /// appropriate, per ARCHITECTURE.md ADR-026.
 ///
-/// `ColorScheme.error` is deliberately Oxide Rose, not Alert Crimson — the
-/// Phase 2 freeze review scoped Alert Crimson exclusively to Critical
-/// risk-level indicators (exposed via [VikzarColors.criticalRisk]), never
-/// to generic form/destructive errors, which is exactly what Flutter's
-/// built-in `error` role is used for by default widgets.
+/// **Colour role assignment, frozen at Phase 5** (DESIGN_SPECIFICATION.md
+/// §8, "Colour Philosophy"): `ColorScheme.primary` is Oxide Rose (the
+/// primary action colour) and `ColorScheme.secondary` is Mineral Blue (the
+/// secondary informational accent) — swapped from the original Phase 2
+/// draft, where Mineral Blue was primary. `ColorScheme.error` remains
+/// Oxide Rose, unchanged: the Phase 2 freeze review scoped Alert Crimson
+/// exclusively to Critical risk-level indicators (exposed via
+/// [VikzarColors.criticalRisk]), never to generic form/destructive errors.
+/// Reusing Oxide Rose for both `primary` and `error` is intentional, not
+/// an oversight — the two are differentiated by component *treatment*
+/// (a filled pill for Primary vs. an outlined pill for Destructive/error),
+/// not by hue, exactly as DESIGN_SPECIFICATION.md §18's Button component
+/// already specified before this swap.
 abstract final class AppTheme {
   static ThemeData light() {
     const colorScheme = ColorScheme(
       brightness: Brightness.light,
-      primary: BrandColors.mineralBlue,
+      primary: BrandColors.oxideRose,
       onPrimary: BrandColors.warmIvory,
-      secondary: BrandColors.oxideRose,
+      secondary: BrandColors.mineralBlue,
       onSecondary: BrandColors.warmIvory,
       error: BrandColors.oxideRose,
       onError: BrandColors.warmIvory,
@@ -51,9 +59,9 @@ abstract final class AppTheme {
   static ThemeData dark() {
     const colorScheme = ColorScheme(
       brightness: Brightness.dark,
-      primary: BrandColors.mineralBlue,
+      primary: BrandColors.oxideRose,
       onPrimary: BrandColors.warmIvory,
-      secondary: BrandColors.oxideRose,
+      secondary: BrandColors.mineralBlue,
       onSecondary: BrandColors.warmIvory,
       error: BrandColors.oxideRose,
       onError: BrandColors.warmIvory,
