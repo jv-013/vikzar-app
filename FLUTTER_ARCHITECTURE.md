@@ -224,34 +224,44 @@ Builds on [ADR-008](DECISIONS.md#adr-008-navigation-architecture--go_router) and
 
 One `GoRouter` instance (`routing/app_router.dart`), root-level `redirect` callback driven by two Riverpod-held pieces of state: authentication status (`authStateProvider`, a `StreamProvider` over `FirebaseAuth.authStateChanges()` combined with the `users/{uid}` profile) and the active workspace (`activeWorkspaceProvider`, **local device state**, per [ADR-031](DECISIONS.md#adr-031-single-application-with-player-and-coach-workspace-switching) — never a Firestore field).
 
+**Revised at Phase 7** to reflect what is actually built, replacing the aspirational table this section originally held (written before Phase 4's bootstrap or Phase 5/6's identity/onboarding work existed). Onboarding's route shape was itself revised at Phase 6 (a real per-workspace subtree, `/onboarding/{workspace}/**`, not the flat `/onboarding/*` sketched originally — see [DECISIONS.md ADR-046](DECISIONS.md#adr-046-onboarding-is-router-gated-as-a-subtree-with-local-per-workspace-completion-tracking)):
+
 ```
 GoRouter
-├── /splash                      (initial route; resolves auth + workspace, then redirects)
-├── /auth                        (Sign In / Create Account — single screen, per DESIGN_SPECIFICATION.md §19.1)
-├── /onboarding
-│   ├── /onboarding/workspace     (Workspace Selection)
-│   ├── /onboarding/level         (Playing/Coaching Level)
-│   ├── /onboarding/profile       (Profile Form)
-│   ├── /onboarding/permissions   (Permissions)
-│   └── /onboarding/pod-or-team   (Connect Pod / Create-Join Team)
-├── ShellRoute (Player)          — PlayerShellScaffold, per DESIGN_SPECIFICATION.md §14
-│   ├── /player/home
-│   ├── /player/timeline
-│   ├── /player/history           (Sessions | Analysis tabs, nested via a StatefulShellBranch or a segment-controlled sub-route)
-│   ├── /player/history/session/:sessionId
-│   ├── /player/profile
-│   ├── /player/profile/settings
-│   └── /player/profile/pod
-└── ShellRoute (Coach)            — CoachShellScaffold, per DESIGN_SPECIFICATION.md §15
-    ├── /coach/home
-    ├── /coach/live
-    ├── /coach/team                (Roster | History tabs)
-    ├── /coach/team/player/:playerId
-    ├── /coach/team/session/:sessionId
-    ├── /coach/alerts
-    ├── /coach/alerts/:alertId
-    └── /coach/profile
+├── /splash                              (initial route; resolves auth + workspace, then redirects)
+├── /auth                                (Email + 6-digit code — DESIGN_SPECIFICATION.md §19.1, revised Phase 6)
+├── /workspace-selection                  (Workspace Selection — onboarding only)
+├── /onboarding/{workspace}/level         ┐
+├── /onboarding/{workspace}/profile       │ one subtree per workspace, gated as a unit —
+├── /onboarding/{workspace}/permissions   │ DECISIONS.md ADR-046
+├── /onboarding/player/connect-pod        │
+├── /onboarding/coach/team                │
+└── /onboarding/{workspace}/complete      ┘ ("Get Started" hands off to Home, Phase 7)
 ```
+
+```
+StatefulShellRoute.indexedStack (Player)   — AppShellScaffold(workspace: player), per DESIGN_SPECIFICATION.md §13/§14
+├── /player/home
+├── /player/timeline                       (placeholder screen — full build is a future phase)
+├── /player/history                        (placeholder screen — full build is a future phase)
+└── /player/profile                        (placeholder screen — full build is a future phase)
+
+StatefulShellRoute.indexedStack (Coach)    — AppShellScaffold(workspace: coach), per DESIGN_SPECIFICATION.md §13/§15
+├── /coach/home
+├── /coach/live                            (placeholder screen — full build is a future phase)
+├── /coach/team                            (placeholder screen — full build is a future phase)
+├── /coach/alerts                          (placeholder screen — full build is a future phase)
+└── /coach/profile                         (placeholder screen — full build is a future phase)
+
+Pushed from either shell (not bottom-nav branches themselves):
+├── /{workspace}/settings
+├── /{workspace}/notifications
+└── /{workspace}/become-a-coach/{step}     (Player-only; a request flow, not a grant — DECISIONS.md ADR-049)
+```
+
+A single `AppShellScaffold(workspace:)` (not a separate `PlayerShellScaffold`/`CoachShellScaffold` pair) builds the bottom nav from a per-workspace item list — "one consistent design language across both workspaces... the item sets differ, the visual system does not" (DESIGN_SPECIFICATION.md §13) is best expressed as one parameterized widget, not two near-duplicate ones. `StatefulShellRoute.indexedStack` (not a plain `ShellRoute`) preserves each tab's scroll position/state when switching bottom-nav destinations, go_router's standard mechanism for this.
+
+Timeline/History/Live Monitoring/Team/Alerts are placeholder screens at Phase 7 — wired into the shell and genuinely navigable (the point of building the shell at all), but not built out to DESIGN_SPECIFICATION.md §19.2/§19.3's full wireframe depth; that is explicitly future-phase work (Roadmap Phases 6–11), out of Phase 7's "Player Home, Coach Home, Application Shell" scope.
 
 ### Redirect Logic (`route_guards.dart`)
 

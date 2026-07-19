@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../design_system/components/vikzar_button.dart';
 import '../../../../design_system/components/vikzar_icon.dart';
 import '../../../../design_system/tokens/motion.dart';
 import '../../../../design_system/tokens/spacing.dart';
@@ -8,42 +9,29 @@ import '../../../../services/local_storage/onboarding_progress_store.dart';
 import '../../../../shared/models/workspace_type.dart';
 
 /// Terminal screen for both onboarding paths — DESIGN_SPECIFICATION.md
-/// §19.1, step 6 (added Phase 6, superseding the original "lands directly
-/// on Home" wireframe: Player/Coach Home are not built this phase). Calm,
-/// brief, no further action required — matches Splash's "momentary
-/// screen, not an interactive one" character.
+/// §19.1, step 6. Calm, brief, a single "Get Started" action.
 ///
-/// Marks this workspace's onboarding as locally complete on first
-/// appearance, so a returning user lands here directly rather than
-/// repeating Level/Profile/Permissions every cold start (the router's
-/// `InOnboarding.alreadyCompleted` gate, `routing/route_guards.dart`).
-class OnboardingCompleteScreen extends ConsumerStatefulWidget {
+/// **Revised at Phase 7:** "Get Started" marks this workspace's onboarding
+/// locally complete (`OnboardingProgressStore`) — deliberately *not* done
+/// automatically on mount, per this phase's "the interaction must be
+/// obvious, never a hidden/automatic transition" principle. That local
+/// flag changing is what the router's `InApp` gate
+/// (`routing/route_guards.dart`) is watching for, so marking complete is
+/// the entire hand-off mechanism: no explicit `context.go` call is needed
+/// here, matching the same pattern `WorkspaceSelectionScreen`'s "Continue"
+/// already uses. A **returning** user who already completed this
+/// workspace's onboarding skips this screen entirely on future cold
+/// starts and lands straight on Home — this remains a first-time-only
+/// celebratory moment.
+class OnboardingCompleteScreen extends ConsumerWidget {
   const OnboardingCompleteScreen({super.key, required this.workspace});
 
   final WorkspaceType workspace;
 
   @override
-  ConsumerState<OnboardingCompleteScreen> createState() =>
-      _OnboardingCompleteScreenState();
-}
-
-class _OnboardingCompleteScreenState
-    extends ConsumerState<OnboardingCompleteScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref
-          .read(onboardingCompletionProvider.notifier)
-          .markComplete(widget.workspace);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final label = widget.workspace == WorkspaceType.player ? 'Player' : 'Coach';
+    final label = workspace == WorkspaceType.player ? 'Player' : 'Coach';
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -78,6 +66,13 @@ class _OnboardingCompleteScreenState
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                       textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: SpacingTokens.space40),
+                    VikzarButton(
+                      label: 'Get Started',
+                      onPressed: () => ref
+                          .read(onboardingCompletionProvider.notifier)
+                          .markComplete(workspace),
                     ),
                   ],
                 ),

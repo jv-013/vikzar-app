@@ -11,8 +11,8 @@ import 'package:vikzar/shared/models/workspace_type.dart';
 
 void main() {
   group('OnboardingCompleteScreen', () {
-    testWidgets('renders a calm confirmation and marks this workspace '
-        'locally complete on appearance', (tester) async {
+    testWidgets('renders a calm confirmation and does not mark complete '
+        'until "Get Started" is tapped', (tester) async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       late final ProviderContainer container;
@@ -37,8 +37,14 @@ void main() {
       expect(find.text('Your Player workspace is ready.'), findsOneWidget);
       expect(
         container.read(onboardingCompletionProvider),
-        contains(WorkspaceType.player),
+        isNot(contains(WorkspaceType.player)),
+        reason: 'marking complete must be an explicit action, never automatic',
       );
+
+      await tester.tap(find.text('Get Started'));
+      await tester.pumpAndSettle();
+
+      expect(container.read(onboardingCompletionProvider), contains(WorkspaceType.player));
       expect(prefs.getBool('onboarding_complete_player'), isTrue);
     });
   });

@@ -421,3 +421,36 @@ This supersedes the `role` field definition in [BACKEND_SPECIFICATION.md §1.5](
 - **Date:** 2026-07-19
 
 **Documented in full in:** [`route_guards.dart`](lib/routing/route_guards.dart), [`app_router.dart`](lib/routing/app_router.dart), [`onboarding_progress_store.dart`](lib/services/local_storage/onboarding_progress_store.dart).
+
+### ADR-047: The Profile Badge Is the Single Entry Point for Account-Level Actions
+
+- **Decision ID:** ADR-047
+- **Decision:** The standalone workspace-switcher pill originally specified in [DESIGN_SPECIFICATION.md §13](DESIGN_SPECIFICATION.md#13-navigation-architecture) is replaced by a **profile badge** — an avatar plus the active workspace's label, in the same top-left app-bar position — that opens a single bottom sheet covering every account-level action: Profile, Settings, Notifications, Help, About, Sign Out, and, conditionally, either **Switch Workspace** (accounts holding more than one workspace) or **Become a Coach** (Player-only accounts). A single-workspace account — the common case, since every new account starts Player-only — sees the badge with no chevron and no "Switch Workspace" row at all: no dropdown affordance, no hint that a second workspace concept exists.
+- **Reason:** Explicit product direction this phase, and a genuine simplification: the original design implied two adjacent top-bar controls both opening "a sheet about your account" (a workspace switcher and a separate Profile nav destination) once Profile became a real screen this phase. One entry point, shape-shifting by what the account actually holds, is fewer concepts for a user to learn and matches [UX Principle 5](PRODUCT_PRINCIPLES.md)'s "switching should feel as light as changing a tab" — the same badge a single-workspace user already understands ("that's me") is exactly where a dual-workspace user finds switching, once they have something to switch between.
+- **Alternatives Considered:** Keeping the workspace-switcher pill and adding a separate always-visible profile icon — rejected as the redundant-adjacent-controls problem described above. Showing "Switch Workspace" (disabled/greyed) even for single-workspace accounts, as an affordance hint — rejected per this phase's explicit instruction: "no chevron, no indication that Coach exists" for a Player-only account; a greyed-out option is still an indication.
+- **Status:** Accepted
+- **Date:** 2026-07-19
+
+**Documented in full in:** [`profile_badge.dart`](lib/features/profile/presentation/widgets/profile_badge.dart), [`profile_sheet.dart`](lib/features/profile/presentation/widgets/profile_sheet.dart), [`workspace_switch_sheet.dart`](lib/features/profile/presentation/widgets/workspace_switch_sheet.dart), [DESIGN_SPECIFICATION.md §13](DESIGN_SPECIFICATION.md#13-navigation-architecture).
+
+### ADR-048: A Single Parameterized App Shell, Not a Player/Coach Scaffold Pair
+
+- **Decision ID:** ADR-048
+- **Decision:** The application shell (bottom navigation + top bar) is one `AppShellScaffold(workspace:)` widget, driven by a per-workspace nav-item list, rather than separate `PlayerShellScaffold`/`CoachShellScaffold` widgets as originally sketched in [FLUTTER_ARCHITECTURE.md §4](FLUTTER_ARCHITECTURE.md#4-navigation). Each workspace gets its own `StatefulShellRoute.indexedStack` (Player: Home/Timeline/History/Profile; Coach: Home/Live/Team/Alerts/Profile) so tab state is preserved per workspace, but both are built by the same scaffold widget.
+- **Reason:** [DESIGN_SPECIFICATION.md §13](DESIGN_SPECIFICATION.md#13-navigation-architecture) already states the intent directly: "one consistent design language across both workspaces... the item sets differ, the visual system does not." A single parameterized widget expresses that literally; two near-identical scaffold classes would drift out of sync over time (a spacing tweak applied to one and forgotten in the other) in exactly the way a single shared component prevents. `StatefulShellRoute.indexedStack` (go_router's standard mechanism for bottom-nav-with-preserved-state) is used over a plain `ShellRoute`, matching this phase's "premium animations... never jarring" requirement — switching tabs must not reset scroll position or rebuild from scratch.
+- **Alternatives Considered:** Two separate scaffold classes, per the original architecture sketch — rejected for the drift risk above, and because nothing about the two workspaces' *chrome* (as opposed to their content) actually differs enough to justify two implementations. A single `StatefulShellRoute` with a dynamic branch list computed from the active workspace — rejected as unnecessarily clever; go_router's route tree is meant to be static, and two separate `StatefulShellRoute` entries (one per workspace) is the more conventional, more debuggable shape.
+- **Status:** Accepted
+- **Date:** 2026-07-19
+
+**Documented in full in:** [`app_shell_scaffold.dart`](lib/routing/shells/app_shell_scaffold.dart), [`app_router.dart`](lib/routing/app_router.dart).
+
+### ADR-049: Become a Coach Is a Placeholder Request Flow, With No Real Approval
+
+- **Decision ID:** ADR-049
+- **Decision:** "Become a Coach" — reachable from a Player-only account's profile sheet — collects Coaching Level, Club/Academy Name, Current Role, and an optional Organization Email, then ends at a submitted-for-review confirmation screen. **No Cloud Function, no Firestore write, and no other mechanism exists to act on this request.** An account cannot reach dual-workspace status through this flow in this codebase today — that state is reachable only via Riverpod provider overrides in tests.
+- **Reason:** Explicit product direction this phase: "Coach access is NOT automatically available... every new account begins as Player only." Building the complete request-collection UI now — while being honest that nothing receives it yet — follows the same placeholder pattern already established for Connect Pod and Create/Join Team in onboarding ([DECISIONS.md ADR-046](#adr-046-onboarding-is-router-gated-as-a-subtree-with-local-per-workspace-completion-tracking)'s neighbors): the UI is real and complete, the backend seam is honestly absent, not faked.
+- **Alternatives Considered:** Auto-granting Coach access on submission (setting the local `onboardingCompletionProvider` flag directly) so the dual-workspace UI could be demonstrated end-to-end without test overrides — rejected outright; this phase is explicit that "No real Coach approval" exists, and simulating a grant would misrepresent what the product actually does today, which is worse than an honestly-limited demo path. Building a review/approval admin surface this phase to make the flow end-to-end — rejected as entirely out of scope (no backend, no Cloud Functions, no admin tooling anywhere in this codebase).
+- **Status:** Accepted
+- **Date:** 2026-07-19
+
+**Documented in full in:** [`become_a_coach_screen.dart`](lib/features/workspace/presentation/screens/become_a_coach_screen.dart), [`become_a_coach_complete_screen.dart`](lib/features/workspace/presentation/screens/become_a_coach_complete_screen.dart).

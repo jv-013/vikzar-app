@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/presentation/screens/auth_screen.dart';
+import '../features/coach_home/presentation/screens/coach_home_screen.dart';
+import '../features/notifications/presentation/screens/notification_center_screen.dart';
 import '../features/onboarding/presentation/screens/coach/coach_level_screen.dart';
 import '../features/onboarding/presentation/screens/coach/coach_permissions_screen.dart';
 import '../features/onboarding/presentation/screens/coach/coach_profile_screen.dart';
@@ -12,18 +14,26 @@ import '../features/onboarding/presentation/screens/player/player_level_screen.d
 import '../features/onboarding/presentation/screens/player/player_permissions_screen.dart';
 import '../features/onboarding/presentation/screens/player/player_profile_screen.dart';
 import '../features/onboarding/presentation/screens/splash_screen.dart';
+import '../features/player_home/presentation/screens/player_home_screen.dart';
+import '../features/profile/presentation/screens/profile_screen.dart';
+import '../features/profile/presentation/screens/settings_screen.dart';
+import '../features/workspace/presentation/screens/become_a_coach_complete_screen.dart';
+import '../features/workspace/presentation/screens/become_a_coach_screen.dart';
 import '../features/workspace/presentation/screens/workspace_selection_screen.dart';
 import '../shared/models/workspace_type.dart';
+import '../shared/widgets/coming_soon_screen.dart';
 import 'route_guards.dart';
+import 'shells/app_shell_scaffold.dart';
 
 /// The single [GoRouter] instance, per FLUTTER_ARCHITECTURE.md §4.
 ///
-/// Phase 6 scope: Splash, Authentication, Workspace Selection, and the
-/// complete Player and Coach onboarding flows through to an Onboarding
-/// Complete terminal screen are real, working, auth-gated routes.
-/// Player/Coach Home and the full ShellRoute-based nested navigation from
-/// FLUTTER_ARCHITECTURE.md §4's complete route table remain future work —
-/// this phase explicitly does not build them.
+/// Phase 7 adds the main application shell: Player Home, Coach Home, a
+/// shared bottom-nav shell for each workspace, Settings, Notifications,
+/// Profile, and the Become-a-Coach request flow. Timeline/History (Player)
+/// and Live/Team/Alerts (Coach) are wired as real, navigable destinations
+/// but render a shared placeholder screen — building them out is explicitly
+/// future-phase work (Roadmap Phases 6–11), out of this phase's "Player
+/// Home, Coach Home, Application Shell" scope.
 ///
 /// A [Provider] (not a bare top-level `GoRouter`) so it can be constructed
 /// with access to `ref` — needed for [RouterRefreshNotifier] and for the
@@ -48,8 +58,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         GoToWorkspaceSelection() => location == WorkspaceSelectionRoute.path
             ? null
             : WorkspaceSelectionRoute.path,
-        InOnboarding(:final workspace, :final alreadyCompleted) =>
-          _onboardingRedirect(location, workspace, alreadyCompleted),
+        InOnboarding(:final workspace) => _onboardingRedirect(location, workspace),
+        InApp(:final workspace) => _appRedirect(location, workspace),
       };
     },
     routes: [
@@ -120,26 +130,156 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) =>
             const OnboardingCompleteScreen(workspace: WorkspaceType.coach),
       ),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            AppShellScaffold(workspace: WorkspaceType.player, navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoute.homePath(WorkspaceType.player),
+                name: 'player-home',
+                builder: (context, state) => const PlayerHomeScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoute.playerTimelinePath,
+                name: 'player-timeline',
+                builder: (context, state) => const ComingSoonScreen(title: 'Timeline'),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoute.playerHistoryPath,
+                name: 'player-history',
+                builder: (context, state) => const ComingSoonScreen(title: 'History'),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoute.profilePath(WorkspaceType.player),
+                name: 'player-profile',
+                builder: (context, state) =>
+                    const ProfileScreen(workspace: WorkspaceType.player),
+              ),
+            ],
+          ),
+        ],
+      ),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            AppShellScaffold(workspace: WorkspaceType.coach, navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoute.homePath(WorkspaceType.coach),
+                name: 'coach-home',
+                builder: (context, state) => const CoachHomeScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoute.coachLivePath,
+                name: 'coach-live',
+                builder: (context, state) =>
+                    const ComingSoonScreen(title: 'Live Team Monitoring'),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoute.coachTeamPath,
+                name: 'coach-team',
+                builder: (context, state) => const ComingSoonScreen(title: 'Team'),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoute.coachAlertsPath,
+                name: 'coach-alerts',
+                builder: (context, state) => const ComingSoonScreen(title: 'Alerts'),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoute.profilePath(WorkspaceType.coach),
+                name: 'coach-profile',
+                builder: (context, state) =>
+                    const ProfileScreen(workspace: WorkspaceType.coach),
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoute.settingsPath(WorkspaceType.player),
+        name: 'player-settings',
+        builder: (context, state) => const SettingsScreen(workspace: WorkspaceType.player),
+      ),
+      GoRoute(
+        path: AppRoute.settingsPath(WorkspaceType.coach),
+        name: 'coach-settings',
+        builder: (context, state) => const SettingsScreen(workspace: WorkspaceType.coach),
+      ),
+      GoRoute(
+        path: AppRoute.notificationsPath(WorkspaceType.player),
+        name: 'player-notifications',
+        builder: (context, state) => const NotificationCenterScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.notificationsPath(WorkspaceType.coach),
+        name: 'coach-notifications',
+        builder: (context, state) => const NotificationCenterScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.becomeCoachPath,
+        name: 'become-a-coach',
+        builder: (context, state) => const BecomeACoachScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.becomeCoachCompletePath,
+        name: 'become-a-coach-complete',
+        builder: (context, state) => const BecomeACoachCompleteScreen(),
+      ),
     ],
   );
 });
 
 /// [InOnboarding] gates an entire subtree, not one exact path — free
 /// forward/back navigation among a workspace's own onboarding steps, and a
-/// forced jump to that workspace's entry step only when arriving from
-/// outside the subtree entirely (fresh from Auth/Workspace Selection, or a
-/// stale deep link into the *other* workspace's subtree).
-String? _onboardingRedirect(
-  String location,
-  WorkspaceType workspace,
-  bool alreadyCompleted,
-) {
+/// forced jump to that workspace's entry step (Level) only when arriving
+/// from outside the subtree entirely.
+String? _onboardingRedirect(String location, WorkspaceType workspace) {
   if (location.startsWith(OnboardingRoute.subtreePrefix(workspace))) {
     return null;
   }
-  return alreadyCompleted
-      ? OnboardingRoute.completePath(workspace)
-      : OnboardingRoute.levelPath(workspace);
+  return OnboardingRoute.levelPath(workspace);
+}
+
+/// [InApp] gates the app shell subtree (`/{workspace}/**` — the bottom-nav
+/// tabs plus Settings/Notifications/Become-a-Coach, all sharing the same
+/// prefix), the same subtree-gating pattern as onboarding. A forced jump
+/// to that workspace's Home only when arriving from outside the subtree.
+String? _appRedirect(String location, WorkspaceType workspace) {
+  if (location.startsWith(AppRoute.subtreePrefix(workspace))) {
+    return null;
+  }
+  return AppRoute.homePath(workspace);
 }
 
 /// Route constants, kept alongside the router they describe rather than
@@ -183,4 +323,35 @@ abstract final class OnboardingRoute {
 
   static String completePath(WorkspaceType workspace) =>
       '${subtreePrefix(workspace)}complete';
+}
+
+/// Path helpers for the app shell subtree, `/{workspace}/**` — added
+/// Phase 7. [playerTimelinePath]/[playerHistoryPath]/[coachLivePath]/
+/// [coachTeamPath]/[coachAlertsPath] are workspace-specific bottom-nav
+/// destinations (their names differ per workspace, unlike [homePath]/
+/// [profilePath]/[settingsPath]/[notificationsPath], which every
+/// workspace has an equivalent of).
+abstract final class AppRoute {
+  static String subtreePrefix(WorkspaceType workspace) =>
+      '/${workspace.firestoreKey}/';
+
+  static String homePath(WorkspaceType workspace) => '${subtreePrefix(workspace)}home';
+
+  static const String playerTimelinePath = '/player/timeline';
+  static const String playerHistoryPath = '/player/history';
+  static const String coachLivePath = '/coach/live';
+  static const String coachTeamPath = '/coach/team';
+  static const String coachAlertsPath = '/coach/alerts';
+
+  static String profilePath(WorkspaceType workspace) =>
+      '${subtreePrefix(workspace)}profile';
+
+  static String settingsPath(WorkspaceType workspace) =>
+      '${subtreePrefix(workspace)}settings';
+
+  static String notificationsPath(WorkspaceType workspace) =>
+      '${subtreePrefix(workspace)}notifications';
+
+  static const String becomeCoachPath = '/player/become-a-coach';
+  static const String becomeCoachCompletePath = '/player/become-a-coach/complete';
 }

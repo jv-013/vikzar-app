@@ -9,9 +9,9 @@ import '../shared/models/workspace_type.dart';
 import '../shared/repositories/user_repository_impl.dart';
 
 /// Where the router should currently be, computed from auth state, the
-/// local active-workspace pointer, the local onboarding-completion record,
-/// and (only as a fallback for a *new device* on an *existing* account)
-/// the user's Firestore profile.
+/// local active-workspace pointer, and the local onboarding-completion
+/// record — with the user's Firestore profile consulted only as a
+/// fallback for a *new device* on an *existing* account.
 sealed class RouteDestination {
   const RouteDestination();
 }
@@ -29,22 +29,28 @@ final class GoToWorkspaceSelection extends RouteDestination {
   const GoToWorkspaceSelection();
 }
 
-/// Authenticated with a workspace chosen. This gates an entire **subtree**
+/// Authenticated with a workspace chosen, but this device hasn't completed
+/// that workspace's onboarding yet. Gates the entire onboarding **subtree**
 /// (`/onboarding/{workspace}/**`), not one exact path — see
 /// `app_router.dart`'s redirect, which allows free forward/back navigation
 /// among that workspace's onboarding steps and only forces a jump when
-/// arriving from *outside* the subtree (fresh from Auth/Workspace
-/// Selection, or a stale deep link into the other workspace's subtree).
+/// arriving from *outside* the subtree.
 final class InOnboarding extends RouteDestination {
-  const InOnboarding(this.workspace, {required this.alreadyCompleted});
+  const InOnboarding(this.workspace);
 
   final WorkspaceType workspace;
+}
 
-  /// True if this **device** has already walked through this workspace's
-  /// onboarding screens before (`OnboardingProgressStore`) — the entry
-  /// point becomes Onboarding Complete instead of Level, so a returning
-  /// user isn't forced through the whole flow again every cold start.
-  final bool alreadyCompleted;
+/// Authenticated, workspace chosen, and this device has already completed
+/// that workspace's onboarding (`OnboardingProgressStore`, per
+/// [DECISIONS.md ADR-046]) — the main application shell (Home, Timeline,
+/// Settings, Notifications, everything under `/{workspace}/**`). Revised
+/// at Phase 7: this used to mean "stay on the Onboarding Complete screen
+/// forever"; it now means "the app shell."
+final class InApp extends RouteDestination {
+  const InApp(this.workspace);
+
+  final WorkspaceType workspace;
 }
 
 /// The single source of truth `redirect` reads from, per
@@ -63,7 +69,7 @@ final routeDestinationProvider = Provider<RouteDestination>((ref) {
 
       final activeWorkspace = ref.watch(activeWorkspaceProvider);
       if (activeWorkspace != null) {
-        return _inOnboarding(ref, activeWorkspace);
+        return _destinationFor(ref, activeWorkspace);
       }
 
       // No local pointer yet on this device. Fall back to Firestore's
@@ -80,7 +86,7 @@ final routeDestinationProvider = Provider<RouteDestination>((ref) {
           onSuccess: (user) {
             final fallback = user?.defaultWorkspace;
             if (fallback == null) return const GoToWorkspaceSelection();
-            return _inOnboarding(ref, fallback);
+            return _destinationFor(ref, fallback);
           },
           // A missing/unreadable profile document is treated the same as
           // "no workspace recorded yet."
@@ -91,9 +97,9 @@ final routeDestinationProvider = Provider<RouteDestination>((ref) {
   );
 });
 
-InOnboarding _inOnboarding(Ref ref, WorkspaceType workspace) {
+RouteDestination _destinationFor(Ref ref, WorkspaceType workspace) {
   final completed = ref.watch(onboardingCompletionProvider).contains(workspace);
-  return InOnboarding(workspace, alreadyCompleted: completed);
+  return completed ? InApp(workspace) : InOnboarding(workspace);
 }
 
 /// Bridges Riverpod state changes to go_router's `refreshListenable`,

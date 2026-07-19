@@ -91,14 +91,39 @@ abstract final class AppTheme {
     required Color scaffoldBackground,
     required VikzarElevation elevation,
   }) {
+    final textTheme = VikzarTextTheme.build(primaryText: primaryText);
+
     return ThemeData(
       useMaterial3: true,
       brightness: colorScheme.brightness,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: scaffoldBackground,
-      textTheme: VikzarTextTheme.build(primaryText: primaryText),
+      textTheme: textTheme,
       dividerColor: colorScheme.outline,
       extensions: <ThemeExtension<dynamic>>[VikzarColors.standard, elevation],
+      // DESIGN_SPECIFICATION.md §18, "Bottom Navigation" (added Phase 7):
+      // active item = filled Oxide Rose tint on icon + label, per the
+      // Phase 5 colour philosophy; inactive = Warm Ivory 64%. Themed once
+      // here rather than per NavigationBar instance, since both
+      // AppShellScaffold(player) and AppShellScaffold(coach) share it.
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: scaffoldBackground,
+        indicatorColor: Colors.transparent,
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => textTheme.labelSmall?.copyWith(
+            color: states.contains(WidgetState.selected)
+                ? colorScheme.primary
+                : colorScheme.onSurface.withValues(alpha: 0.64),
+          ),
+        ),
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? colorScheme.primary
+                : colorScheme.onSurface.withValues(alpha: 0.64),
+          ),
+        ),
+      ),
     );
   }
 }

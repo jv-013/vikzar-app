@@ -163,13 +163,14 @@ void main() {
         final destination = container.read(routeDestinationProvider);
         expect(destination, isA<InOnboarding>());
         expect((destination as InOnboarding).workspace, WorkspaceType.player);
-        expect(destination.alreadyCompleted, isFalse);
       },
     );
 
     test(
       'authenticated with a local active-workspace pointer already marked '
-      'complete -> InOnboarding(alreadyCompleted: true)',
+      'complete -> InApp (the main application shell) — revised Phase 7: '
+      'this used to mean "stay on Onboarding Complete forever," it now '
+      'means "enter the app"',
       () async {
         final container = _containerFor(
           auth: const AsyncData(Authenticated(uid: _uid)),
@@ -180,8 +181,8 @@ void main() {
         await _settle(container);
 
         final destination = container.read(routeDestinationProvider);
-        expect(destination, isA<InOnboarding>());
-        expect((destination as InOnboarding).alreadyCompleted, isTrue);
+        expect(destination, isA<InApp>());
+        expect((destination as InApp).workspace, WorkspaceType.coach);
       },
     );
 
