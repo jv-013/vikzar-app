@@ -11,19 +11,29 @@ import 'package:vikzar/features/auth/domain/repositories/auth_repository.dart';
 import 'package:vikzar/features/auth/presentation/screens/auth_screen.dart';
 
 class _FakeAuthRepository implements AuthRepository {
-  Result<void>? nextResult;
-  bool submitCalled = false;
+  Result<void>? nextSendOtpResult;
+  Result<void>? nextVerifyOtpResult;
+  bool sendOtpCalled = false;
+  bool verifyOtpCalled = false;
+  String? lastVerifiedEmail;
 
   @override
   Stream<AuthState> get authStateChanges => const Stream.empty();
 
   @override
-  Future<Result<void>> signInOrCreateAccount({
+  Future<Result<void>> sendOtp({required String email}) async {
+    sendOtpCalled = true;
+    return nextSendOtpResult ?? const Result.success(null);
+  }
+
+  @override
+  Future<Result<void>> verifyOtp({
     required String email,
-    required String password,
+    required String code,
   }) async {
-    submitCalled = true;
-    return nextResult ?? const Result.success(null);
+    verifyOtpCalled = true;
+    lastVerifiedEmail = email;
+    return nextVerifyOtpResult ?? const Result.success(null);
   }
 
   @override
@@ -32,8 +42,9 @@ class _FakeAuthRepository implements AuthRepository {
 
 void main() {
   group('AuthScreen', () {
-    testWidgets('renders one email field, one password field, one Continue '
-        'button — per DESIGN_SPECIFICATION.md §19.1', (tester) async {
+    testWidgets('renders the email step with no password field anywhere', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [authRepositoryProvider.overrideWithValue(_FakeAuthRepository())],
@@ -42,16 +53,36 @@ void main() {
       );
 
       expect(find.text('Email'), findsOneWidget);
-      expect(find.text('Password'), findsOneWidget);
+      expect(find.text('Password'), findsNothing);
       expect(find.text('Continue'), findsOneWidget);
-      // No separate "Sign Up" toggle/button — one screen, one action.
-      expect(find.text('Sign Up'), findsNothing);
-      expect(find.text('Sign In'), findsNothing);
     });
 
-    testWidgets('submits the entered email/password to the repository', (
-      tester,
-    ) async {
+    testWidgets(
+      'submitting an email advances to the 6-digit code step and shows '
+      'that email back to the user',
+      (tester) async {
+        final fakeRepository = _FakeAuthRepository();
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [authRepositoryProvider.overrideWithValue(fakeRepository)],
+            child: MaterialApp(theme: AppTheme.dark(), home: const AuthScreen()),
+          ),
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Email'),
+          'jai@vikzar.app',
+        );
+        await tester.tap(find.text('Continue'));
+        await tester.pumpAndSettle();
+
+        expect(fakeRepository.sendOtpCalled, isTrue);
+        expect(find.text('Enter the code we sent you.'), findsOneWidget);
+        expect(find.textContaining('jai@vikzar.app'), findsOneWidget);
+      },
+    );
+
+    testWidgets('entering a 6-digit code verifies it', (tester) async {
       final fakeRepository = _FakeAuthRepository();
       await tester.pumpWidget(
         ProviderScope(
@@ -64,20 +95,22 @@ void main() {
         find.widgetWithText(TextField, 'Email'),
         'jai@vikzar.app',
       );
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Password'),
-        'a-password',
-      );
       await tester.tap(find.text('Continue'));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      expect(fakeRepository.submitCalled, isTrue);
+      await tester.enterText(find.byType(TextField).first, '123456');
+      await tester.pumpAndSettle();
+
+      expect(fakeRepository.verifyOtpCalled, isTrue);
+      expect(fakeRepository.lastVerifiedEmail, 'jai@vikzar.app');
     });
 
-    testWidgets('shows a calm, mapped error message on failure — never a '
-        'raw error code', (tester) async {
+    testWidgets('shows a calm, mapped error message on a failed code — '
+        'never a raw error code', (tester) async {
       final fakeRepository = _FakeAuthRepository()
-        ..nextResult = const Result.failure(AuthFailure(message: 'wrong-password'));
+        ..nextVerifyOtpResult = const Result.failure(
+          AuthFailure(message: 'invalid-credential'),
+        );
       await tester.pumpWidget(
         ProviderScope(
           overrides: [authRepositoryProvider.overrideWithValue(fakeRepository)],
@@ -85,13 +118,18 @@ void main() {
         ),
       );
 
-      await tester.enterText(find.widgetWithText(TextField, 'Email'), 'a@b.com');
-      await tester.enterText(find.widgetWithText(TextField, 'Password'), 'x');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Email'),
+        'jai@vikzar.app',
+      );
       await tester.tap(find.text('Continue'));
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      expect(find.text('Incorrect email or password.'), findsOneWidget);
-      expect(find.text('wrong-password'), findsNothing);
+      await tester.enterText(find.byType(TextField).first, '123456');
+      await tester.pumpAndSettle();
+
+      expect(find.text("That code didn't work. Please try again."), findsOneWidget);
+      expect(find.text('invalid-credential'), findsNothing);
     });
   });
 }

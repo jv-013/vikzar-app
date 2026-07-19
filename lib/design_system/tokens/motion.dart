@@ -25,6 +25,17 @@ abstract final class MotionTokens {
   /// Reduced-motion fallback — instant cross-fade, no directional movement.
   static const Duration reducedMotion = Duration(milliseconds: 100);
 
+  /// Forward-navigation page transitions (added Phase 6) — e.g. one
+  /// onboarding step to the next. A restrained slide-with-fade, distinct
+  /// from the workspace-switch cross-fade ([liveDataCrossFade] duration
+  /// differs; workspace switching itself is [sheetAndDialog]'s duration,
+  /// never a slide).
+  static const Duration pageTransition = Duration(milliseconds: 250);
+
+  /// Soft scale-in for buttons/cards on appearance (added Phase 6) — not
+  /// on every interaction, only first appearance.
+  static const Duration softScaleIn = Duration(milliseconds: 150);
+
   static const Curve entrance = Curves.easeOut;
   static const Curve exit = Curves.easeIn;
 }

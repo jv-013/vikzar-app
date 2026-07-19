@@ -2,7 +2,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/presentation/screens/auth_screen.dart';
-import '../features/onboarding/presentation/screens/onboarding_placeholder_screen.dart';
+import '../features/onboarding/presentation/screens/coach/coach_level_screen.dart';
+import '../features/onboarding/presentation/screens/coach/coach_permissions_screen.dart';
+import '../features/onboarding/presentation/screens/coach/coach_profile_screen.dart';
+import '../features/onboarding/presentation/screens/coach/create_join_team_screen.dart';
+import '../features/onboarding/presentation/screens/onboarding_complete_screen.dart';
+import '../features/onboarding/presentation/screens/player/connect_pod_screen.dart';
+import '../features/onboarding/presentation/screens/player/player_level_screen.dart';
+import '../features/onboarding/presentation/screens/player/player_permissions_screen.dart';
+import '../features/onboarding/presentation/screens/player/player_profile_screen.dart';
 import '../features/onboarding/presentation/screens/splash_screen.dart';
 import '../features/workspace/presentation/screens/workspace_selection_screen.dart';
 import '../shared/models/workspace_type.dart';
@@ -10,13 +18,12 @@ import 'route_guards.dart';
 
 /// The single [GoRouter] instance, per FLUTTER_ARCHITECTURE.md §4.
 ///
-/// Phase 5 scope: Splash, Authentication, and Workspace Selection are real,
-/// working, auth-gated routes. The destination beyond Workspace Selection
-/// is a placeholder ("role-specific onboarding (future)") — Player/Coach
-/// Home and the full ShellRoute-based nested navigation from
-/// FLUTTER_ARCHITECTURE.md §4's complete route table remain future work,
-/// since this phase explicitly does not build onboarding, Player Home, or
-/// Coach Home.
+/// Phase 6 scope: Splash, Authentication, Workspace Selection, and the
+/// complete Player and Coach onboarding flows through to an Onboarding
+/// Complete terminal screen are real, working, auth-gated routes.
+/// Player/Coach Home and the full ShellRoute-based nested navigation from
+/// FLUTTER_ARCHITECTURE.md §4's complete route table remain future work —
+/// this phase explicitly does not build them.
 ///
 /// A [Provider] (not a bare top-level `GoRouter`) so it can be constructed
 /// with access to `ref` — needed for [RouterRefreshNotifier] and for the
@@ -41,10 +48,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         GoToWorkspaceSelection() => location == WorkspaceSelectionRoute.path
             ? null
             : WorkspaceSelectionRoute.path,
-        GoToOnboardingPlaceholder(:final workspace) =>
-          location == OnboardingPlaceholderRoute.pathFor(workspace)
-              ? null
-              : OnboardingPlaceholderRoute.pathFor(workspace),
+        InOnboarding(:final workspace, :final alreadyCompleted) =>
+          _onboardingRedirect(location, workspace, alreadyCompleted),
       };
     },
     routes: [
@@ -64,20 +69,78 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const WorkspaceSelectionScreen(),
       ),
       GoRoute(
-        path: OnboardingPlaceholderRoute.playerPath,
-        name: OnboardingPlaceholderRoute.playerName,
-        builder: (context, state) =>
-            const OnboardingPlaceholderScreen(workspace: WorkspaceType.player),
+        path: OnboardingRoute.levelPath(WorkspaceType.player),
+        name: 'onboarding-player-level',
+        builder: (context, state) => const PlayerLevelScreen(),
       ),
       GoRoute(
-        path: OnboardingPlaceholderRoute.coachPath,
-        name: OnboardingPlaceholderRoute.coachName,
+        path: OnboardingRoute.profilePath(WorkspaceType.player),
+        name: 'onboarding-player-profile',
+        builder: (context, state) => const PlayerProfileScreen(),
+      ),
+      GoRoute(
+        path: OnboardingRoute.permissionsPath(WorkspaceType.player),
+        name: 'onboarding-player-permissions',
+        builder: (context, state) => const PlayerPermissionsScreen(),
+      ),
+      GoRoute(
+        path: OnboardingRoute.connectPodPath,
+        name: 'onboarding-player-connect-pod',
+        builder: (context, state) => const ConnectPodScreen(),
+      ),
+      GoRoute(
+        path: OnboardingRoute.completePath(WorkspaceType.player),
+        name: 'onboarding-player-complete',
         builder: (context, state) =>
-            const OnboardingPlaceholderScreen(workspace: WorkspaceType.coach),
+            const OnboardingCompleteScreen(workspace: WorkspaceType.player),
+      ),
+      GoRoute(
+        path: OnboardingRoute.levelPath(WorkspaceType.coach),
+        name: 'onboarding-coach-level',
+        builder: (context, state) => const CoachLevelScreen(),
+      ),
+      GoRoute(
+        path: OnboardingRoute.profilePath(WorkspaceType.coach),
+        name: 'onboarding-coach-profile',
+        builder: (context, state) => const CoachProfileScreen(),
+      ),
+      GoRoute(
+        path: OnboardingRoute.permissionsPath(WorkspaceType.coach),
+        name: 'onboarding-coach-permissions',
+        builder: (context, state) => const CoachPermissionsScreen(),
+      ),
+      GoRoute(
+        path: OnboardingRoute.teamPath,
+        name: 'onboarding-coach-team',
+        builder: (context, state) => const CreateJoinTeamScreen(),
+      ),
+      GoRoute(
+        path: OnboardingRoute.completePath(WorkspaceType.coach),
+        name: 'onboarding-coach-complete',
+        builder: (context, state) =>
+            const OnboardingCompleteScreen(workspace: WorkspaceType.coach),
       ),
     ],
   );
 });
+
+/// [InOnboarding] gates an entire subtree, not one exact path — free
+/// forward/back navigation among a workspace's own onboarding steps, and a
+/// forced jump to that workspace's entry step only when arriving from
+/// outside the subtree entirely (fresh from Auth/Workspace Selection, or a
+/// stale deep link into the *other* workspace's subtree).
+String? _onboardingRedirect(
+  String location,
+  WorkspaceType workspace,
+  bool alreadyCompleted,
+) {
+  if (location.startsWith(OnboardingRoute.subtreePrefix(workspace))) {
+    return null;
+  }
+  return alreadyCompleted
+      ? OnboardingRoute.completePath(workspace)
+      : OnboardingRoute.levelPath(workspace);
+}
 
 /// Route constants, kept alongside the router they describe rather than
 /// scattered as string literals through the app — each path is already a
@@ -98,14 +161,26 @@ abstract final class WorkspaceSelectionRoute {
   static const String name = 'workspace-selection';
 }
 
-abstract final class OnboardingPlaceholderRoute {
-  static const String playerPath = '/onboarding/player';
-  static const String playerName = 'onboarding-player';
-  static const String coachPath = '/onboarding/coach';
-  static const String coachName = 'onboarding-coach';
+/// Path helpers for the onboarding subtree, `/onboarding/{workspace}/**`.
+/// [connectPodPath]/[teamPath] are workspace-specific steps (Player-only,
+/// Coach-only respectively) rather than a shared `stepPath` helper, since
+/// their names and following-screen shape genuinely differ.
+abstract final class OnboardingRoute {
+  static String subtreePrefix(WorkspaceType workspace) =>
+      '/onboarding/${workspace.firestoreKey}/';
 
-  static String pathFor(WorkspaceType workspace) => switch (workspace) {
-    WorkspaceType.player => playerPath,
-    WorkspaceType.coach => coachPath,
-  };
+  static String levelPath(WorkspaceType workspace) =>
+      '${subtreePrefix(workspace)}level';
+
+  static String profilePath(WorkspaceType workspace) =>
+      '${subtreePrefix(workspace)}profile';
+
+  static String permissionsPath(WorkspaceType workspace) =>
+      '${subtreePrefix(workspace)}permissions';
+
+  static const String connectPodPath = '/onboarding/player/connect-pod';
+  static const String teamPath = '/onboarding/coach/team';
+
+  static String completePath(WorkspaceType workspace) =>
+      '${subtreePrefix(workspace)}complete';
 }

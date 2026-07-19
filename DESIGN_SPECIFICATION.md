@@ -166,7 +166,9 @@ The following is binding, verbatim, on every screen this product will ever ship 
 
 ## 5. Typography System
 
-**Typeface recommendation:** **Inter** (open-source, permissively licensed, exceptional tabular-figure support for data display, broad language coverage). This is a design-phase recommendation made under this phase's mandate, not yet independently confirmed at the product level — tracked in Open Questions. All data figures (risk scores, metrics, timestamps) use **tabular (monospaced) figures** so numbers never shift width as they update live — critical for the Live Team Monitoring grid, where jittering numbers would read as broken, not alive.
+**Typeface freeze (Phase 6):** two typefaces, each with one job. **Nohemi** for headings (Display, Headline, Title Large, Title — the four largest, highest-emphasis steps below) and **Inter** for body/UI text (Body Large, Body, Label, Caption — the four smallest, functional steps). This resolves the Phase 4 Open Question for Inter (now confirmed, not just recommended) while introducing Nohemi as the dedicated heading face — a deliberate two-family system, not a single face doing both jobs. Inter's open licensing and exceptional tabular-figure support carry over unchanged; Nohemi is chosen for its geometric, confident character at large display sizes, matching the "instrument, not app" feel from [§1](#1-product-vision). All data figures (risk scores, metrics, timestamps) use **tabular (monospaced) figures** so numbers never shift width as they update live — critical for the Live Team Monitoring grid, where jittering numbers would read as broken, not alive.
+
+**Nohemi asset status:** Nohemi's font files are not present in this repository as of Phase 6 and are not fetched automatically — obtaining and licensing a specific commercial font file is a design-team/procurement decision, not something inferred from a phase brief. Headings render with the platform default system font as an honest, visibly-provisional placeholder (not silently substituted with Inter, which would look "finished" and risk the gap going unnoticed) until the asset is supplied. The swap point is a single named function, documented in `design_system/theme/vikzar_text_theme.dart`. Body text does not have this caveat — Inter is confirmed and implemented via `google_fonts` this phase.
 
 ### Type Scale
 
@@ -320,6 +322,7 @@ Radius scales with size — larger surfaces get proportionally larger radii, but
 3. **Live data updates are muted, not animated.** When a live metric updates (once per second, per [BACKEND_SPECIFICATION.md §21](BACKEND_SPECIFICATION.md#21-upload-contract-for-the-laptop)), the number cross-fades (120ms) rather than sliding, counting up, or bouncing — a live-monitoring number that visibly "animates" every second reads as noisy, not alive, at the frequency this data arrives.
 4. **Workspace switching is a cross-fade, not a slide.** Per UX Principle 5, switching Player ↔ Coach uses a 200ms cross-fade of the entire screen content, reinforcing "same app, different lens" rather than "new app" (a slide/push transition would read as navigating to a different place).
 5. **Respect reduce-motion.** Every transition above has a reduced-motion fallback (instant cross-fade at 100ms, no directional movement) tied to the OS accessibility setting, per [§20](#20-accessibility).
+6. **Forward navigation transitions (added Phase 6).** Moving deeper into a flow (e.g., one onboarding step to the next) uses a restrained iOS-style horizontal slide-with-fade, 250ms, ease-out — a spatial cue that this is "going further in," distinct from the cross-fade reserved for workspace switching (point 4, "same app, different lens," which is deliberately never a slide). Sheets (bottom sheets, pickers) rise with a 250ms ease-out slide-up-with-fade and dismiss in reverse at 200ms. Buttons and selectable cards use a soft 150ms scale-in (98% → 100%) on appearance, not on every interaction — restraint over decoration, per [§3](#3-design-philosophy)'s Permanent Design Principle.
 
 ## 13. Navigation Architecture
 
@@ -456,9 +459,10 @@ Six-screen onboarding philosophy: Splash plus five decision screens. Authenticat
 
 ```mermaid
 flowchart TD
-    Splash -->|signed out| Auth[Sign In / Create Account]
+    Splash -->|signed out| AuthEmail["Auth: Email"]
+    AuthEmail --> AuthOtp["Auth: 6-digit code"]
     Splash -->|returning, authenticated| Home[Last-used workspace Home]
-    Auth --> WSel["1. Workspace Selection"]
+    AuthOtp --> WSel["1. Workspace Selection"]
     WSel -->|Player| PLevel["2. Playing Level"]
     WSel -->|Coach| CLevel["2. Coaching Level"]
     PLevel --> PProfile["3. Profile Form incl. inline injury history"]
@@ -467,9 +471,13 @@ flowchart TD
     CProfile --> CPerm["4. Permissions, single screen"]
     PPerm --> ConnectPod["5. Connect First Pod"]
     CPerm --> Team["5. Create/Join Team"]
-    ConnectPod --> PHome[Player Home]
-    Team --> CHome[Coach Home]
+    ConnectPod --> PComplete["Onboarding Complete"]
+    Team --> CComplete["Onboarding Complete"]
+    PComplete -.future phase.-> PHome[Player Home]
+    CComplete -.future phase.-> CHome[Coach Home]
 ```
+
+*Revised at Phase 6: the identity gate is now two steps (Email, then a 6-digit code) rather than one password screen — still uncounted infrastructure, per the paragraph above. Both onboarding paths now terminate at an explicit "Onboarding Complete" screen rather than proceeding directly to Home — Phase 6's scope is onboarding only, and Player/Coach Home do not exist yet; the dotted lines mark that hand-off as future work, not built this phase.*
 
 ### 17.2 Workspace Switching
 
@@ -625,29 +633,36 @@ Every MVP screen, described zone by zone. No Flutter widgets are named — only 
 **Splash**
 **Revised at Phase 4 (Flutter Project Bootstrap).** Originally specified as icon-only, no text. Phase 4's explicit bootstrap requirements added the tagline "Know Every Impact." to this screen — reconciled here rather than left to silently diverge from the implementation. The reasoning holds up on its own merits, independent of why it was raised: the Welcome screen, which previously held the tagline as its "used once, here, as the emotional entry point" moment, was removed entirely during the Phase 2 freeze's onboarding rewrite (six-screen flow, [§19.1](#191-onboarding-flow)) — leaving the tagline with no home in the product at all. Splash is the one screen guaranteed to be seen by every user, every time the app cold-starts, making it the natural, single home for the tagline going forward.
 
-Full-bleed Plum Black. Vertically and horizontally centered: standalone Vikzar icon mark, with the tagline "Know Every Impact." beneath it in Body-size text at reduced (`onSurfaceVariant`) emphasis, static aside from a brief fade-in on load (per [§12](#12-motion-principles)). No buttons, no navigation, no loading spinner, no progress indicator — it is a terminal, momentary screen, not an interactive one. While auth state resolves, Splash routes to exactly one of three destinations: a returning, single-workspace user goes straight to that workspace's Home; a returning, dual-workspace user goes to their `defaultWorkspace`'s Home; a signed-out user proceeds to **Sign In / Create Account** — one screen, one email field, one password field, one "Continue" action, no separate OTP step and no separate "signed in successfully" confirmation screen. This is the identity gate referenced above. (This auth-state routing is not yet implemented as of Phase 4's bootstrap-scoped Splash — see [FLUTTER_ARCHITECTURE.md §4](FLUTTER_ARCHITECTURE.md#4-navigation), deferred to Phase 5+.)
+Full-bleed Plum Black. Vertically and horizontally centered: standalone Vikzar icon mark, with the tagline "Know Every Impact." beneath it in Body-size text at reduced (`onSurfaceVariant`) emphasis, static aside from a brief fade-in on load (per [§12](#12-motion-principles)). No buttons, no navigation, no loading spinner, no progress indicator — it is a terminal, momentary screen, not an interactive one. While auth state resolves, Splash routes to exactly one of three destinations: a returning, single-workspace user goes straight to that workspace's Home; a returning, dual-workspace user goes to their `defaultWorkspace`'s Home; a signed-out user proceeds to **Sign In / Create Account** — the identity gate referenced above.
+
+**Revised at Phase 6: authentication is passwordless.** The gate is now two steps, one continuous flow, never presented as a choice between "Sign In" and "Sign Up": an email entry step, then a 6-digit code entry step sent to that email. There is no password, no confirm-password, no forgot-password, and no password-complexity messaging anywhere in the product — [DECISIONS.md ADR-043](DECISIONS.md#adr-043-passwordless-email-otp-authentication-replaces-email-and-password) supersedes the Phase 5 password-based single-screen flow this paragraph originally described. Whether the email belongs to an existing or a brand-new account is resolved silently after code verification — the user is never asked to declare which.
 
 **1. Workspace Selection**
 Headline "How will you use Vikzar?" Body: "You can switch between Player and Coach anytime — this just picks where you start." Two large selectable Cards stacked (`radius-md`, Elevation 1 at rest / 2 selected), each with an icon, "Player" / "Coach" Title, and one supporting sentence ("Track your own sessions and risk." / "Monitor your team in real time."). Primary button "Continue" activates once one is selected; the choice is written to `defaultWorkspace` (see [DECISIONS.md ADR-031](DECISIONS.md#adr-031-single-application-with-player-and-coach-workspace-switching)).
 
 **2. Level**
-Headline "What's your level?" — a single segment control, workspace-appropriate: **Player** sees Playing Level (Grassroots / Academy / Semi-Pro / Professional); **Coach** sees Coaching Level, the identical visual treatment relabeled (Grassroots / Club / Academy / Professional), keeping one consistent design language across both onboarding paths rather than a Player-only concept with no Coach equivalent. Primary button "Continue."
+Headline "What's your level?" — a single segment control, workspace-appropriate: **Player** sees Playing Level (Academy / Amateur / Semi Professional / Professional); **Coach** sees Coaching Level (Academy / Club / Professional), keeping one consistent design language across both onboarding paths rather than a Player-only concept with no Coach equivalent. Primary button "Continue."
+
+*Revised at Phase 6: label sets updated from the original draft (Grassroots / Academy / Semi-Pro / Professional for Player; Grassroots / Club / Academy / Professional for Coach) to the above, per explicit direction that phase. Documented as a content reconciliation, not a silent change.*
 
 **3. Profile Form**
 Headline "Tell us about you." **One** vertically-stacked form, no split across multiple screens:
-- **Player:** Name, Age, Height, Weight, Preferred Foot (segment control), Playing Position (chips), Training Frequency (segment control: 0–1 / 2–4 / 5+), Injury History (chips: "No previous injury" / "Previous injury"). Selecting "Previous injury" **expands inline**, in place, on this same screen: a set of multi-select chips (ACL, Meniscus, Hamstring, Ankle, Other) fades open beneath the chip row — never a new screen, never a new page.
+- **Player:** Name, Age, Height, Weight, Preferred Foot (segment control), Playing Position (chips), Injury History (segment control: "Never" / "Previously" / "Currently Recovering"). Selecting "Previously" **expands inline**, in place, on this same screen: a set of multi-select chips (ACL, Meniscus, Hamstring, Ankle, Other) fades open beneath the segment control — never a new screen, never a new page. *Revised at Phase 6: Injury History gained an explicit third clinical state ("Currently Recovering," distinct from a past, resolved injury) — a meaningful enough distinction to be worth the one extra segment. Training Frequency, previously folded into this form, is removed at Phase 6 (absent from that phase's explicit field list); it can be reintroduced in a later phase if the product needs it — dropped, not forgotten.*
 - **Coach:** Name, Age, Coaching Title/Role (free text, e.g. "Head Coach"), Club/Organization name (free text — maps to a future `organizations` link, see [BACKEND_SPECIFICATION.md §23](BACKEND_SPECIFICATION.md#23-future-scalability)).
 
 Primary button "Continue," disabled until required fields are complete.
 
 **4. Permissions**
-**One** screen, not one screen per permission. Headline "A few permissions to get the most out of Vikzar." A vertically-stacked list of four rows (Bluetooth, Notifications, Motion, Health), each with an icon, a plain-language benefit sentence, and a toggle. Bluetooth is framed honestly — "Vikzar hardware connects through your team's laptop; this enables future direct-device features" — never implying the phone pairs today, consistent with the laptop-centric MVP architecture. Motion and Health are visually deemphasized with a "Coming soon" tag and are not wired to a live OS prompt yet (future-ready per [§22](#22-future-expansion)). A single Primary button "Continue" fires the relevant native OS prompts (Bluetooth, Notifications) in sequence in the background — the user makes one decision per row and one tap to proceed, not four sequential full-screen steps.
+**One** screen, not one screen per permission. Headline "A few permissions to get the most out of Vikzar." A vertically-stacked list of three rows (Bluetooth, Motion, Notifications), each with an icon, a plain-language benefit sentence, and a toggle. Bluetooth is framed honestly — "Vikzar hardware connects through your team's laptop; this enables future direct-device features" — never implying the phone pairs today, consistent with the laptop-centric MVP architecture. A single Primary button "Continue" advances; in this phase, toggles are UI-only local state, not wired to live OS permission prompts (see [DECISIONS.md](DECISIONS.md) for the Phase 6 ADR recording this as a placeholder pending real `permission_handler`/platform-config integration — a native-platform-configuration undertaking outside a UI-focused phase). *Revised at Phase 6: a fourth "Health" row, present in the original draft, is removed — no Health-adjacent feature exists yet, and it was absent from that phase's explicit permissions list.*
 
 **5a. Connect Your First Pod (Player only)**
-Headline "Connect your first Vikzar Pod." Body clarifies the MVP model honestly: "Your coach's session laptop connects to your Pod during training and matches it to your account. Nothing to pair here — you're ready as soon as your Pod is assigned." A simple confirmation Card shows Pod assignment status (Empty state: "Not yet assigned — ask your coach" with a "Continue anyway" Primary button, never a blocking requirement, per Principle 5). Completing this step lands directly on Player Home — no intermediate confirmation screen.
+Headline "Connect your first Vikzar Pod." Body clarifies the MVP model honestly: "Your coach's session laptop connects to your Pod during training and matches it to your account. Nothing to pair here — you're ready as soon as your Pod is assigned." A simple confirmation Card shows Pod assignment status (Empty state: "Not yet assigned — ask your coach" with a "Continue anyway" Primary button, never a blocking requirement, per Principle 5). Completing this step advances to **Onboarding Complete**, below.
 
 **5b. Create/Join Team (Coach only)**
-Headline "Set up your team." Two options as large selectable Cards: "Create a new team" (opens an inline name field + Primary "Create") or "Join an existing team" (opens an inline invite-code field + Primary "Join"). Either path lands directly on Coach Home — no intermediate confirmation screen.
+Headline "Set up your team." Two options as large selectable Cards: "Create a new team" (opens an inline name field + Primary "Create") or "Join an existing team" (opens an inline invite-code field + Primary "Join"). Either path advances to **Onboarding Complete**, below.
+
+**6. Onboarding Complete**
+*Added at Phase 6.* A calm, brief success screen — Vikzar icon mark, a short confirmation headline ("You're all set."), no further action required. **Revised at Phase 6, superseding "lands directly on \[Player/Coach\] Home" above**: that phase explicitly scopes onboarding only — Player Home and Coach Home are not built yet, so both paths terminate here instead. This screen becomes the redirect target for a returning user who already completed this workspace's onboarding on this device (a **local, per-device** "onboarding complete" flag, the same local-state pattern as the active-workspace pointer, [DECISIONS.md ADR-031](DECISIONS.md#adr-031-single-application-with-player-and-coach-workspace-switching)) — until a future phase replaces it with a real hand-off to Home.
 
 ### 19.2 Player Workspace Screens
 
@@ -763,7 +778,7 @@ Clearly separated from MVP, per this phase's instruction, and consistent with [A
 
 ## Assumptions
 
-- **Inter** is recommended as the primary typeface under this phase's design mandate; final licensing/procurement confirmation is not yet independently made at the product level.
+- **Inter is confirmed** (Phase 6) as the body/UI typeface. **Nohemi is frozen as the heading typeface but its font asset is not yet sourced** — headings render with the platform default system font until the asset is supplied and dropped into the documented swap point ([§5](#5-typography-system)).
 - The four bespoke icon needs in [§11](#11-iconography-rules) (Pod, EMG Band, Risk Level family, Impact Event) are assumed to be commissioned before Phase 3 implementation begins; Material Symbols outlined equivalents are the interim placeholder.
 - The Coach onboarding fields (Coaching Title/Role, Club/Organization free text) are this document's own design judgment, filling a gap in the original brief (which specified a Player-oriented onboarding flow only) — reasoned from Principle 5 (onboarding must stay short for both roles) and the explicit requirement that Coach is an equally valid starting workspace.
 - **Recovery and Readiness metrics were considered during the Phase 2 freeze audit and deliberately not added.** Neither concept exists in [BACKEND_SPECIFICATION.md](BACKEND_SPECIFICATION.md)'s data model; adding either would mean inventing a new laptop ML/Risk Engine output, which is out of this document's scope to originate. If either is wanted as a genuine future capability, it should be raised as a backend/ML requirement first, not designed backward from a dashboard card.
@@ -771,7 +786,7 @@ Clearly separated from MVP, per this phase's instruction, and consistent with [A
 ## Open Questions
 
 1. **`users/{uid}` multi-workspace data model** — **Resolved at the Phase 2 freeze review.** See [DECISIONS.md ADR-031](DECISIONS.md#adr-031-single-application-with-player-and-coach-workspace-switching) and [BACKEND_SPECIFICATION.md §1.5](BACKEND_SPECIFICATION.md#1-complete-firestore-schema) for the finalized `workspaces` / `defaultWorkspace` schema.
-2. **Typeface licensing confirmation** (Inter vs. an alternative) — still open as of Phase 5; the type scale continues to render with each platform's default system font (`design_system/tokens/type_scale.dart`) pending this decision.
+2. **Nohemi font asset sourcing** — frozen as the heading typeface at Phase 6, but no font file has been supplied to this repository yet; headings render with the platform default system font (`design_system/theme/vikzar_text_theme.dart`) at a documented swap point pending the asset. Inter (body text) is fully resolved and implemented, closing the Phase 4/5 half of this question.
 3. **Bespoke icon commissioning** (four glyphs, [§11](#11-iconography-rules)) — needs an owner and timeline; not yet commissioned as of Phase 5.
 4. **Coach "Add Player" / team invite flow detail** — flagged in [§19.3](#193-coach-workspace-screens) as out of this document's current wireframe depth; needs a dedicated flow pass before Roadmap Phase 9 (Team Management) implementation.
 5. **Exact copy/microcopy pass** — this document specifies headline/body *content intent* and representative copy, not final, legally- and tone-reviewed strings; a copy pass is expected before wider rollout.
@@ -780,6 +795,8 @@ Clearly separated from MVP, per this phase's instruction, and consistent with [A
 Resolved at the Phase 2 freeze review (previously open, closed by that review): the onboarding screen count/order (now six screens, [§19.1](#191-onboarding-flow)), Alert Crimson brand sign-off (now approved, scoped exclusively to Critical risk states, [§8](#8-colour-usage-rules)), and the List Row component gap (now specified, [§18](#18-component-library)).
 
 Resolved at Phase 5: the official logo/icon SVG assets are now imported and in use ([§19.1](#191-onboarding-flow)); the Primary/Secondary accent colour role assignment is frozen (Oxide Rose = primary action, Mineral Blue = secondary informational accent, [§8](#8-colour-usage-rules)).
+
+Resolved at Phase 6: authentication is passwordless (email + 6-digit code, [DECISIONS.md ADR-043](DECISIONS.md#adr-043-passwordless-email-otp-authentication-replaces-email-and-password)); Inter is confirmed as the body typeface (Nohemi, the heading typeface, remains open per item 2 above pending its font asset); the full Player and Coach onboarding flows are specified and built through to an Onboarding Complete terminal screen.
 
 ## Document Control
 

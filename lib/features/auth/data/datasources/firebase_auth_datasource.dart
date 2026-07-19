@@ -19,17 +19,27 @@ class FirebaseAuthDatasource implements AuthDatasource {
   );
 
   @override
-  Future<void> signIn({required String email, required String password}) =>
+  Future<void> sendOtp({required String email}) async {
+    // Placeholder (DECISIONS.md ADR-044): no real backend exists this phase
+    // to generate, email, and verify a one-time code, so nothing is
+    // actually sent. The delay simulates real network latency so the
+    // calling screen's loading state has something genuine to show rather
+    // than an instant, suspicious-looking "success."
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+  }
+
+  @override
+  Future<void> signIn({required String email, required String secret}) =>
       _guard(
-        () => _auth.signInWithEmailAndPassword(email: email, password: password),
+        () => _auth.signInWithEmailAndPassword(email: email, password: secret),
       );
 
   @override
   Future<void> createAccount({
     required String email,
-    required String password,
+    required String secret,
   }) => _guard(
-    () => _auth.createUserWithEmailAndPassword(email: email, password: password),
+    () => _auth.createUserWithEmailAndPassword(email: email, password: secret),
   );
 
   @override

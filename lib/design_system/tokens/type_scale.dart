@@ -1,15 +1,10 @@
 /// The 8-step type scale, per DESIGN_SPECIFICATION.md §5.
 ///
-/// IMPORTANT — typeface: DESIGN_SPECIFICATION.md §5 recommends "Inter" as
-/// the primary typeface, but its own Open Questions list explicitly flag
-/// that recommendation as **not yet confirmed** (licensing/procurement
-/// pending). Per this phase's instruction to install `google_fonts` "only
-/// if approved by the design specification," it has not been installed and
-/// `fontFamily` is deliberately left unset below, so the app renders with
-/// each platform's default system font (San Francisco / Roboto / Segoe UI
-/// / Ubuntu) until that decision is made. Swapping in a confirmed typeface
-/// later is a one-line change in design_system/theme/text_theme.dart —
-/// nothing else in the app references a font family directly.
+/// Sizes, weights, line heights, and tracking are typeface-agnostic and
+/// frozen here. Which *typeface* renders each step (Nohemi for headings,
+/// Inter for body — frozen Phase 6) is applied in
+/// `design_system/theme/vikzar_text_theme.dart`, not here — see that file's
+/// doc comment for the Nohemi asset swap point.
 ///
 /// Weights used: 400 (regular), 500 (medium), 600 (semibold) only — no
 /// light, no bold/700+, per the deliberately small type system in

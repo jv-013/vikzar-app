@@ -271,7 +271,7 @@ test/                       # Mirrors lib/ structure 1:1
 
 **Impact:** Authorization checks in Firestore/Storage Security Rules (§19) reference `get(/databases/$(database)/documents/users/$(request.auth.uid)).data.workspaces` (or equivalent) rather than a custom auth-token claim. If a future phase identifies a concrete need for token-level trust (e.g. very high-frequency rule evaluation at scale), migrating to custom claims is a contained, additive change — noted here so it isn't rediscovered from scratch later.
 
-**Open item:** Which sign-in methods are offered at MVP (email/password only vs. also Google/Apple sign-in) is not decided by this document — see Open Questions.
+**Resolved at Phase 6:** authentication is passwordless — email address, then a 6-digit one-time code, with no password, confirm-password, forgot-password, or password-complexity concept anywhere in the product. See [DECISIONS.md ADR-043](DECISIONS.md#adr-043-passwordless-email-otp-authentication-replaces-email-and-password) and [ADR-044](DECISIONS.md#adr-044-placeholder-otp-verification-pending-real-backend-delivery) (the latter documenting that, absent a real backend this phase, code verification is a clearly-labeled placeholder — architecturally real, cryptographically not yet). Google/Apple sign-in remains deferred, unchanged from Phase 5.
 
 ---
 
@@ -677,7 +677,7 @@ Every decision above was selected by weighing Principle 1 (simplicity), Principl
 
 To be resolved before the corresponding roadmap phase begins:
 
-1. **Sign-in methods offered at MVP** — email/password only, or also social providers (Google/Apple) — before Roadmap Phase 4.
+1. ~~Sign-in methods offered at MVP~~ — **Resolved at Phase 6:** passwordless email + 6-digit code (no password). Social providers (Google/Apple) remain deferred, not yet scheduled.
 2. **Regulatory/compliance requirements** — whether HIPAA, GDPR, or another regime applies to Vikzar's health-adjacent data, which may impose additional constraints on §19 (Security Architecture) and data retention — should be answered by product/legal input before production readiness (Roadmap Phase 13), ideally sooner.
 3. **Version control and CI/CD provider** — this repository is not yet under version control; the choice of git host determines available CI/CD tooling for §25.
 4. **Firebase Crashlytics and Analytics adoption** — proposed in this document (§17, §18) but not yet explicitly confirmed at the product level the way core Firebase services (§8) were.
@@ -685,6 +685,8 @@ To be resolved before the corresponding roadmap phase begins:
 6. **When (not if) to prioritize the Future Evolution path** (direct phone-to-wearable BLE, below) — no timeline is set; it is a documented capability, not a scheduled roadmap phase, pending a future product decision.
 
 Resolved this phase: the BLE plugin selection and AI model/provider open questions from Phase 1 are resolved at the architecture level — both now belong entirely to the laptop pipeline, outside this document's scope, per [ADR-030](DECISIONS.md#adr-030-laptop-centric-ble-etl-and-ml-pipeline-for-mvp).
+
+Resolved at Phase 6: sign-in method (item 1, above) — passwordless email + 6-digit code.
 
 ## Future Evolution
 

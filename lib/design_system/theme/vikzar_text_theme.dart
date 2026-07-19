@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../tokens/type_scale.dart';
 
@@ -7,12 +8,26 @@ import '../tokens/type_scale.dart';
 ///
 /// Material 3's [TextTheme] has more size slots (13) than Vikzar's scale
 /// (8) — each Vikzar step is reused across the closest matching M3 roles
-/// rather than inventing additional sizes. `fontFamily` is deliberately
-/// left unset everywhere (see tokens/type_scale.dart) pending typeface
-/// confirmation.
+/// rather than inventing additional sizes.
+///
+/// **Typeface freeze (Phase 6):** Display/Headline/Title Large/Title are
+/// "headings" (Nohemi); Body Large/Body/Label/Caption are "body" (Inter).
+///
+/// **Nohemi swap point:** Nohemi's font files are not present in this
+/// repository — obtaining and licensing a specific commercial font file is
+/// a design-team/procurement decision, not one this phase can make. Until
+/// that asset exists, [_heading] deliberately returns the *unmodified* base
+/// style (no `fontFamily` set), so headings render in the platform default
+/// system font — an honest, visibly-provisional placeholder, not a silent
+/// Inter substitution that would look "finished." Once Nohemi's `.ttf`/`.otf`
+/// files are added under `assets/fonts/` and registered in `pubspec.yaml`,
+/// swap this function's body for
+/// `GoogleFonts.getFont('Nohemi', textStyle: base)` (if distributed via a
+/// Google Fonts-compatible catalog) or a `TextStyle(fontFamily: 'Nohemi')`
+/// override — no other file in the app references a font family directly.
 abstract final class VikzarTextTheme {
   static TextTheme build({required Color primaryText}) {
-    TextStyle style({
+    TextStyle base({
       required double size,
       required double height,
       required int weight,
@@ -25,53 +40,69 @@ abstract final class VikzarTextTheme {
       color: primaryText,
     );
 
-    final display = style(
-      size: TypeScaleTokens.displaySize,
-      height: TypeScaleTokens.displayLineHeight,
-      weight: TypeScaleTokens.displayWeight,
-      tracking: TypeScaleTokens.displayTracking,
+    final display = _heading(
+      base(
+        size: TypeScaleTokens.displaySize,
+        height: TypeScaleTokens.displayLineHeight,
+        weight: TypeScaleTokens.displayWeight,
+        tracking: TypeScaleTokens.displayTracking,
+      ),
     );
-    final headline = style(
-      size: TypeScaleTokens.headlineSize,
-      height: TypeScaleTokens.headlineLineHeight,
-      weight: TypeScaleTokens.headlineWeight,
-      tracking: TypeScaleTokens.headlineTracking,
+    final headline = _heading(
+      base(
+        size: TypeScaleTokens.headlineSize,
+        height: TypeScaleTokens.headlineLineHeight,
+        weight: TypeScaleTokens.headlineWeight,
+        tracking: TypeScaleTokens.headlineTracking,
+      ),
     );
-    final titleLarge = style(
-      size: TypeScaleTokens.titleLargeSize,
-      height: TypeScaleTokens.titleLargeLineHeight,
-      weight: TypeScaleTokens.titleLargeWeight,
-      tracking: TypeScaleTokens.titleLargeTracking,
+    final titleLarge = _heading(
+      base(
+        size: TypeScaleTokens.titleLargeSize,
+        height: TypeScaleTokens.titleLargeLineHeight,
+        weight: TypeScaleTokens.titleLargeWeight,
+        tracking: TypeScaleTokens.titleLargeTracking,
+      ),
     );
-    final title = style(
-      size: TypeScaleTokens.titleSize,
-      height: TypeScaleTokens.titleLineHeight,
-      weight: TypeScaleTokens.titleWeight,
-      tracking: TypeScaleTokens.titleTracking,
+    final title = _heading(
+      base(
+        size: TypeScaleTokens.titleSize,
+        height: TypeScaleTokens.titleLineHeight,
+        weight: TypeScaleTokens.titleWeight,
+        tracking: TypeScaleTokens.titleTracking,
+      ),
     );
-    final bodyLarge = style(
-      size: TypeScaleTokens.bodyLargeSize,
-      height: TypeScaleTokens.bodyLargeLineHeight,
-      weight: TypeScaleTokens.bodyLargeWeight,
-      tracking: TypeScaleTokens.bodyLargeTracking,
+    final bodyLarge = _body(
+      base(
+        size: TypeScaleTokens.bodyLargeSize,
+        height: TypeScaleTokens.bodyLargeLineHeight,
+        weight: TypeScaleTokens.bodyLargeWeight,
+        tracking: TypeScaleTokens.bodyLargeTracking,
+      ),
     );
-    final body = style(
-      size: TypeScaleTokens.bodySize,
-      height: TypeScaleTokens.bodyLineHeight,
-      weight: TypeScaleTokens.bodyWeight,
-      tracking: TypeScaleTokens.bodyTracking,
+    final body = _body(
+      base(
+        size: TypeScaleTokens.bodySize,
+        height: TypeScaleTokens.bodyLineHeight,
+        weight: TypeScaleTokens.bodyWeight,
+        tracking: TypeScaleTokens.bodyTracking,
+      ),
     );
-    final label = style(
-      size: TypeScaleTokens.labelSize,
-      height: TypeScaleTokens.labelLineHeight,
-      weight: TypeScaleTokens.labelWeight,
-      tracking: TypeScaleTokens.labelTracking,
+    final label = _body(
+      base(
+        size: TypeScaleTokens.labelSize,
+        height: TypeScaleTokens.labelLineHeight,
+        weight: TypeScaleTokens.labelWeight,
+        tracking: TypeScaleTokens.labelTracking,
+      ),
     );
-    final caption = style(
-      size: TypeScaleTokens.captionSize,
-      height: TypeScaleTokens.captionLineHeight,
-      weight: TypeScaleTokens.captionWeight,
-      tracking: TypeScaleTokens.captionTracking,
+    final caption = _body(
+      base(
+        size: TypeScaleTokens.captionSize,
+        height: TypeScaleTokens.captionLineHeight,
+        weight: TypeScaleTokens.captionWeight,
+        tracking: TypeScaleTokens.captionTracking,
+      ),
     );
 
     return TextTheme(
@@ -92,6 +123,15 @@ abstract final class VikzarTextTheme {
       labelSmall: caption,
     );
   }
+
+  /// Nohemi swap point — see class doc comment. Currently a no-op (platform
+  /// default system font).
+  static TextStyle _heading(TextStyle base) => base;
+
+  /// Inter, confirmed Phase 6. `GoogleFonts.inter` preserves every property
+  /// of [base] (size, height, weight, tracking, color) and only sets the
+  /// font family/fallback.
+  static TextStyle _body(TextStyle base) => GoogleFonts.inter(textStyle: base);
 
   static FontWeight _weightFrom(int weight) => switch (weight) {
     400 => FontWeight.w400,

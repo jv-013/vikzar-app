@@ -7,77 +7,95 @@ import 'package:vikzar/features/auth/data/repositories/auth_repository_impl.dart
 import '../datasources/fake_auth_datasource.dart';
 
 void main() {
-  group('AuthRepositoryImpl.signInOrCreateAccount', () {
-    test('signs in successfully when the account and password match', () async {
-      final datasource = FakeAuthDatasource()
-        ..existingAccounts['jai@vikzar.app'] = 'correct-password';
+  group('AuthRepositoryImpl.sendOtp', () {
+    test('succeeds and delegates to the datasource', () async {
+      final datasource = FakeAuthDatasource();
       final repository = AuthRepositoryImpl(datasource);
 
-      final result = await repository.signInOrCreateAccount(
+      final result = await repository.sendOtp(email: 'jai@vikzar.app');
+
+      expect(result.isSuccess, isTrue);
+      expect(datasource.sendOtpCalled, isTrue);
+    });
+
+    test('maps a datasource failure', () async {
+      final datasource = _AlwaysThrowsOnSendOtp('network-request-failed');
+      final repository = AuthRepositoryImpl(datasource);
+
+      final result = await repository.sendOtp(email: 'jai@vikzar.app');
+
+      expect(result.isFailure, isTrue);
+      final failure = result.fold(onSuccess: (_) => null, onFailure: (f) => f);
+      expect(failure, isA<NetworkFailure>());
+    });
+  });
+
+  group('AuthRepositoryImpl.verifyOtp', () {
+    test('rejects a code that is not exactly 6 digits, without touching '
+        'the datasource', () async {
+      final datasource = FakeAuthDatasource();
+      final repository = AuthRepositoryImpl(datasource);
+
+      final result = await repository.verifyOtp(
         email: 'jai@vikzar.app',
-        password: 'correct-password',
+        code: '12345',
+      );
+
+      expect(result.isFailure, isTrue);
+      final failure = result.fold(onSuccess: (_) => null, onFailure: (f) => f);
+      expect(failure, isA<AuthFailure>());
+      expect((failure as AuthFailure).message, 'invalid-otp-format');
+      expect(datasource.existingAccounts, isEmpty);
+    });
+
+    test('creates the account on first verification for a new email', () async {
+      final datasource = FakeAuthDatasource();
+      final repository = AuthRepositoryImpl(datasource);
+
+      final result = await repository.verifyOtp(
+        email: 'new@vikzar.app',
+        code: '123456',
       );
 
       expect(result.isSuccess, isTrue);
+      expect(datasource.existingAccounts.containsKey('new@vikzar.app'), isTrue);
     });
 
     test(
-      'creates the account when no account exists for the email '
-      '(user-not-found)',
+      'signs in on a second verification for the same email — the derived '
+      'credential is deterministic per email, so the account created on '
+      'the first call is found on the second',
       () async {
         final datasource = FakeAuthDatasource();
         final repository = AuthRepositoryImpl(datasource);
 
-        final result = await repository.signInOrCreateAccount(
-          email: 'new@vikzar.app',
-          password: 'a-new-password',
+        final first = await repository.verifyOtp(
+          email: 'returning@vikzar.app',
+          code: '111111',
+        );
+        final second = await repository.verifyOtp(
+          email: 'returning@vikzar.app',
+          code: '222222',
         );
 
-        expect(result.isSuccess, isTrue);
-        expect(datasource.existingAccounts['new@vikzar.app'], 'a-new-password');
+        expect(first.isSuccess, isTrue);
+        expect(second.isSuccess, isTrue);
       },
     );
 
-    test('surfaces "incorrect password" rather than creating a duplicate '
-        'account when the password is wrong', () async {
-      final datasource = FakeAuthDatasource()
-        ..existingAccounts['jai@vikzar.app'] = 'correct-password';
-      final repository = AuthRepositoryImpl(datasource);
-
-      final result = await repository.signInOrCreateAccount(
-        email: 'jai@vikzar.app',
-        password: 'wrong-password-attempt',
-      );
-
-      expect(result.isFailure, isTrue);
-      final failure = result.fold(
-        onSuccess: (_) => null,
-        onFailure: (f) => f,
-      );
-      expect(failure, isA<AuthFailure>());
-      expect((failure as AuthFailure).message, 'wrong-password');
-      // Never attempted to create a duplicate account.
-      expect(datasource.existingAccounts['jai@vikzar.app'], 'correct-password');
-    });
-
     test(
       'surfaces the original sign-in failure when create-account fails '
-      'with email-already-in-use (the newer-SDK invalid-credential path)',
+      'with email-already-in-use — a defensive path for an account whose '
+      'stored credential does not match this build\'s derivation (e.g. '
+      'created under a prior derivation-secret version)',
       () async {
-        // Simulates a Firebase Auth SDK version that returns the
-        // consolidated 'invalid-credential' code instead of
-        // 'wrong-password' for a mismatched password: the repository must
-        // still attempt create-account (invalid-credential is in its
-        // no-account-error set), get email-already-in-use back, and
-        // surface the *original* invalid-credential failure rather than
-        // the confusing "already in use" one.
-        final datasource = _InvalidCredentialOnWrongPassword()
-          ..existingAccounts['jai@vikzar.app'] = 'correct-password';
+        final datasource = _InvalidCredentialAlways()
+          ..existingAccounts['jai@vikzar.app'] = 'some-other-secret';
         final repository = AuthRepositoryImpl(datasource);
 
-        final result = await repository.signInOrCreateAccount(
+        final result = await repository.verifyOtp(
           email: 'jai@vikzar.app',
-          password: 'wrong-password-attempt',
+          code: '123456',
         );
 
         expect(result.isFailure, isTrue);
@@ -89,12 +107,11 @@ void main() {
 
     test('maps an unrelated sign-in failure without attempting create', () async {
       final datasource = _AlwaysThrowsOnSignIn('invalid-email');
-
       final repository = AuthRepositoryImpl(datasource);
 
-      final result = await repository.signInOrCreateAccount(
+      final result = await repository.verifyOtp(
         email: 'not-an-email',
-        password: 'whatever',
+        code: '123456',
       );
 
       expect(result.isFailure, isTrue);
@@ -123,18 +140,28 @@ void main() {
   });
 }
 
-/// Like [FakeAuthDatasource], but `signIn` throws `invalid-credential`
-/// instead of `wrong-password` on a mismatch — simulating the
-/// enumeration-protected Firebase Auth SDK behaviour.
-class _InvalidCredentialOnWrongPassword extends FakeAuthDatasource {
+/// A datasource whose `sendOtp` always throws the given error code.
+class _AlwaysThrowsOnSendOtp extends FakeAuthDatasource {
+  _AlwaysThrowsOnSendOtp(this.code);
+
+  final String code;
+
   @override
-  Future<void> signIn({required String email, required String password}) async {
+  Future<void> sendOtp({required String email}) async {
+    throw AuthDatasourceException(code);
+  }
+}
+
+/// Like [FakeAuthDatasource], but `signIn` always throws `invalid-credential`
+/// regardless of the derived secret — simulating an account whose stored
+/// credential can never match this build's derivation.
+class _InvalidCredentialAlways extends FakeAuthDatasource {
+  @override
+  Future<void> signIn({required String email, required String secret}) async {
     if (!existingAccounts.containsKey(email)) {
       throw const AuthDatasourceException('invalid-credential');
     }
-    if (existingAccounts[email] != password) {
-      throw const AuthDatasourceException('invalid-credential');
-    }
+    throw const AuthDatasourceException('invalid-credential');
   }
 }
 
@@ -147,16 +174,16 @@ class _AlwaysThrowsOnSignIn extends FakeAuthDatasource {
   bool createAccountCalled = false;
 
   @override
-  Future<void> signIn({required String email, required String password}) async {
+  Future<void> signIn({required String email, required String secret}) async {
     throw AuthDatasourceException(code);
   }
 
   @override
   Future<void> createAccount({
     required String email,
-    required String password,
+    required String secret,
   }) async {
     createAccountCalled = true;
-    return super.createAccount(email: email, password: password);
+    return super.createAccount(email: email, secret: secret);
   }
 }

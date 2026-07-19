@@ -17,6 +17,7 @@ class VikzarTextField extends StatelessWidget {
     this.autofillHints,
     this.enabled = true,
     this.onSubmitted,
+    this.onChanged,
   });
 
   final String label;
@@ -27,6 +28,7 @@ class VikzarTextField extends StatelessWidget {
   final Iterable<String>? autofillHints;
   final bool enabled;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +41,7 @@ class VikzarTextField extends StatelessWidget {
       autofillHints: autofillHints,
       enabled: enabled,
       onSubmitted: onSubmitted,
+      onChanged: onChanged,
       style: TextStyle(color: colorScheme.onSurface),
       decoration: InputDecoration(
         labelText: label,

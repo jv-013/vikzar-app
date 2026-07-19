@@ -20,18 +20,25 @@ class AuthDatasourceException implements Exception {
 }
 
 /// The contract `AuthRepositoryImpl` depends on — proportionate
-/// abstraction at the SDK boundary, per FLUTTER_ARCHITECTURE.md §7/§15:
-/// this is what makes the sign-in-or-create-account fallback logic unit
-/// testable against a fake, without mocking `firebase_auth` classes.
+/// abstraction at the SDK boundary, per FLUTTER_ARCHITECTURE.md §7/§15.
+///
+/// Phase 6: authentication is passwordless (email + 6-digit code) at every
+/// layer above this one. [signIn]/[createAccount] still take a `secret`
+/// parameter because Firebase Auth has no native email-OTP primitive — see
+/// `AuthRepositoryImpl`'s doc comment for how that secret is derived and
+/// why it never appears in any public, user-facing API. This interface is
+/// what makes that whole mechanism unit-testable against a fake, without
+/// mocking `firebase_auth` classes.
 abstract interface class AuthDatasource {
   Stream<AuthUser?> get authStateChanges;
 
-  Future<void> signIn({required String email, required String password});
+  /// Placeholder — see `AuthRepositoryImpl`'s doc comment. No email is
+  /// actually sent by any implementation at Phase 6.
+  Future<void> sendOtp({required String email});
 
-  Future<void> createAccount({
-    required String email,
-    required String password,
-  });
+  Future<void> signIn({required String email, required String secret});
+
+  Future<void> createAccount({required String email, required String secret});
 
   Future<void> signOut();
 }

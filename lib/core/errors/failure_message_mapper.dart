@@ -20,12 +20,12 @@ abstract final class FailureMessageMapper {
 
   static String _authMessage(String? code) {
     return switch (code) {
+      'invalid-otp-format' => 'Enter the 6-digit code sent to your email.',
+      'invalid-email' => "That email address doesn't look right.",
+      'user-disabled' => 'This account has been disabled.',
       'wrong-password' ||
       'user-not-found' ||
-      'invalid-credential' => 'Incorrect email or password.',
-      'invalid-email' => "That email address doesn't look right.",
-      'weak-password' => 'Please choose a stronger password (8+ characters).',
-      'user-disabled' => 'This account has been disabled.',
+      'invalid-credential' => "That code didn't work. Please try again.",
       _ => 'We couldn\'t sign you in. Please try again.',
     };
   }
