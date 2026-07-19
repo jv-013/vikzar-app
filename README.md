@@ -58,9 +58,9 @@ with an architecture that remains compatible with a future Flutter Web target. C
 
 ## Repository Purpose
 
-This repository is the single source of truth for the Vikzar application: its specification, its architecture and product decisions, its roadmap, and — once implementation begins — its source code.
+This repository is the single source of truth for the Vikzar application: its specification, its architecture and product decisions, its roadmap, and its source code.
 
-At this stage, the repository contains only foundational documentation. No Flutter project has been initialized yet. This is intentional: architecture and product scope are defined first, so that implementation starts from a clear and agreed foundation rather than being discovered along the way.
+Architecture and product scope were defined first, before any code — deliberately, so implementation starts from a clear and agreed foundation rather than being discovered along the way. The Flutter project (`lib/`, `test/`, and the platform folders) now exists, built exactly to the structure specified in [FLUTTER_ARCHITECTURE.md](FLUTTER_ARCHITECTURE.md); see [Getting Started](#getting-started) below to run it.
 
 ### Key Documents
 
@@ -77,8 +77,21 @@ At this stage, the repository contains only foundational documentation. No Flutt
 | [ROADMAP.md](ROADMAP.md) | The phased plan from architecture through to a production-ready MVP. |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes to the project over time, in Keep a Changelog format. |
 
+## Getting Started
+
+Requires the Flutter stable channel (developed against 3.44.0) with the `web`, `macos`, `windows`, `linux`, `android`, and `ios` platforms enabled.
+
+```
+flutter pub get
+flutter analyze
+flutter test
+flutter run -d chrome   # or -d macos, or any connected device
+```
+
+At this stage the app has exactly one working screen (Splash) — this proves the codebase builds and launches cleanly on every target platform ahead of any feature implementation.
+
 ## Status
 
-**Current phase:** Foundation — documentation and architecture only. No application code exists yet.
+**Current phase:** Flutter project bootstrap complete. The application now exists as a real Flutter codebase (Android, iOS, macOS, Windows, Linux, Web from one source tree) with the folder structure, design system tokens/theme, and routing scaffolding frozen in [FLUTTER_ARCHITECTURE.md](FLUTTER_ARCHITECTURE.md) and [DESIGN_SPECIFICATION.md](DESIGN_SPECIFICATION.md) implemented. The only working screen is Splash — no authentication, no Firebase, and no feature functionality exist yet; that begins in the next phase.
 
 See [ROADMAP.md](ROADMAP.md) for what comes next.
