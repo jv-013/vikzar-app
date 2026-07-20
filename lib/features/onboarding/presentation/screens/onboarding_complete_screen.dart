@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/errors/failure_message_mapper.dart';
 import '../../../../design_system/components/vikzar_button.dart';
 import '../../../../design_system/components/vikzar_icon.dart';
 import '../../../../design_system/tokens/motion.dart';
@@ -24,6 +23,18 @@ import '../controllers/onboarding_completion_controller.dart';
 /// **returning** user who already completed this workspace's onboarding
 /// skips this screen entirely on future cold starts and lands straight on
 /// Home — this remains a first-time-only celebratory moment.
+///
+/// **Revised at Phase 8C:** live testing found a real, reproducible
+/// failure here — Firestore Security Rules reject the write because
+/// `firestore.rules` (authored Phase 8B) was never deployed, so the live
+/// project still runs default-deny rules (see DECISIONS.md ADR-054). The
+/// code already did the honest thing (block, show an error, never
+/// navigate) — this revision only replaces the error copy with the exact,
+/// specific line this phase's brief calls for, on any failure, rather
+/// than the varying [FailureMessageMapper] text: this screen has exactly
+/// one meaning for "the write failed" and should say so consistently,
+/// never a raw error code, never a dialog or snackbar — inline, calm,
+/// same spot every time.
 class OnboardingCompleteScreen extends ConsumerWidget {
   const OnboardingCompleteScreen({super.key, required this.workspace});
 
@@ -36,9 +47,12 @@ class OnboardingCompleteScreen extends ConsumerWidget {
     final completionState = ref.watch(
       onboardingCompletionControllerProvider(workspace),
     );
+    // A fixed, specific line rather than FailureMessageMapper's varying
+    // per-Failure-type text (DECISIONS.md ADR-054): this screen has one
+    // meaning for "the write failed," regardless of why.
     final errorText = completionState.failure == null
         ? null
-        : FailureMessageMapper.toMessage(completionState.failure!);
+        : "Couldn't save your profile.\nPlease try again.";
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,

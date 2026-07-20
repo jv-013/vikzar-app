@@ -9,8 +9,14 @@ import '../../../../shared/models/workspace_type.dart';
 import '../controllers/workspace_selection_controller.dart';
 
 /// Workspace Selection — DESIGN_SPECIFICATION.md §19.1, step 1 of the
-/// six-screen onboarding flow. "You can switch between Player and Coach
-/// anytime — this just picks where you start."
+/// six-screen onboarding flow.
+///
+/// **Revised at Phase 8C:** the body copy no longer claims switching
+/// between Player and Coach is available "anytime" — every new account
+/// starts Player-only, and gaining a Coach workspace requires the
+/// separate "Become a Coach" request-and-review flow (no auto-grant, per
+/// DECISIONS.md ADR-049), so "anytime" overstated what this screen
+/// actually does: pick the account's one starting workspace.
 class WorkspaceSelectionScreen extends ConsumerWidget {
   const WorkspaceSelectionScreen({super.key});
 
@@ -40,8 +46,8 @@ class WorkspaceSelectionScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: SpacingTokens.space12),
                   Text(
-                    'You can switch between Player and Coach anytime — '
-                    'this just picks where you start.',
+                    "This is the workspace you'll start in — you can "
+                    'request the other one later from your profile.',
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),

@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/errors/failure.dart';
+import '../../../../core/errors/firestore_failure_mapper.dart';
 import '../../../../core/result/result.dart';
 import '../../../../services/firebase/firestore_service.dart';
 import '../../domain/models/app_notification.dart';
@@ -26,10 +26,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
           for (final doc in snapshot.docs) AppNotification.fromMap(_normalize(doc.data()), id: doc.id),
         ]);
       }
-    } on FirebaseException catch (e) {
-      yield Result.failure(_mapException(e));
     } catch (e) {
-      yield Result.failure(UnknownFailure(cause: e));
+      yield Result.failure(mapFirestoreError(e));
     }
   }
 
@@ -53,10 +51,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
     try {
       await _collection(uid).doc(notificationId).update({'read': true});
       return const Result.success(null);
-    } on FirebaseException catch (e) {
-      return Result.failure(_mapException(e));
     } catch (e) {
-      return Result.failure(UnknownFailure(cause: e));
+      return Result.failure(mapFirestoreError(e));
     }
   }
 
@@ -72,21 +68,9 @@ class NotificationRepositoryImpl implements NotificationRepository {
       }
       await batch.commit();
       return const Result.success(null);
-    } on FirebaseException catch (e) {
-      return Result.failure(_mapException(e));
     } catch (e) {
-      return Result.failure(UnknownFailure(cause: e));
+      return Result.failure(mapFirestoreError(e));
     }
-  }
-
-  Failure _mapException(FirebaseException e) {
-    if (e.code == 'permission-denied') {
-      return PermissionFailure(message: e.code, cause: e);
-    }
-    if (e.code == 'unavailable') {
-      return NetworkFailure(message: e.code, cause: e);
-    }
-    return UnknownFailure(message: e.code, cause: e);
   }
 }
 

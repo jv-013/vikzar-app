@@ -33,6 +33,12 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   InjuryHistoryStatus? _injuryStatus;
   Set<InjuryType> _injuryTypes = {};
 
+  /// Inline validation only becomes visible once the user has tried to
+  /// continue with the form incomplete — showing every required field as
+  /// an error on first load, before anything is typed, would read as the
+  /// screen accusing the user of a mistake they haven't made yet.
+  bool _showValidation = false;
+
   @override
   void initState() {
     super.initState();
@@ -72,34 +78,60 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   );
 
   void _continue() {
+    if (!_current.isComplete) {
+      setState(() => _showValidation = true);
+      return;
+    }
     ref.read(playerOnboardingControllerProvider.notifier).setProfile(_current);
     context.go(OnboardingRoute.permissionsPath(WorkspaceType.player));
+  }
+
+  /// A small Caption-size, Oxide-Rose error line beneath a selection
+  /// control (segment control / chip group) that has no built-in
+  /// `errorText` slot the way [VikzarTextField] does — same error
+  /// treatment ([DESIGN_SPECIFICATION.md §18](../../../../../../DESIGN_SPECIFICATION.md)'s
+  /// Text Fields error state), just not attached to a field border.
+  Widget? _selectionError(BuildContext context, bool show) {
+    if (!show) return null;
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: SpacingTokens.space4),
+      child: Text(
+        'Required',
+        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final showErrors = _showValidation;
+    final current = _current;
 
     return OnboardingStepScaffold(
       headline: 'Tell us about you.',
       showBackButton: true,
-      onContinue: _current.isComplete ? _continue : null,
+      onContinue: _continue,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           VikzarTextField(
             label: 'Name',
             controller: _nameController,
+            errorText: showErrors && current.name.trim().isEmpty ? 'Required' : null,
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: SpacingTokens.space16),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: VikzarTextField(
                   label: 'Age',
                   controller: _ageController,
                   keyboardType: TextInputType.number,
+                  errorText: showErrors && current.age == null ? 'Required' : null,
                   onChanged: (_) => setState(() {}),
                 ),
               ),
@@ -109,6 +141,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
                   label: 'Height (cm)',
                   controller: _heightController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  errorText: showErrors && current.height == null ? 'Required' : null,
                   onChanged: (_) => setState(() {}),
                 ),
               ),
@@ -119,6 +152,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
             label: 'Weight (kg)',
             controller: _weightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            errorText: showErrors && current.weight == null ? 'Required' : null,
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: SpacingTokens.space24),
@@ -130,6 +164,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
             selected: _foot,
             onChanged: (value) => setState(() => _foot = value),
           ),
+          ?_selectionError(context, showErrors && _foot == null),
           const SizedBox(height: SpacingTokens.space24),
           Text('Playing Position', style: theme.textTheme.titleSmall),
           const SizedBox(height: SpacingTokens.space8),
@@ -142,6 +177,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
               () => _position = selection.isEmpty ? null : selection.first,
             ),
           ),
+          ?_selectionError(context, showErrors && _position == null),
           const SizedBox(height: SpacingTokens.space24),
           Text('Injury History', style: theme.textTheme.titleSmall),
           const SizedBox(height: SpacingTokens.space8),
@@ -156,6 +192,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
               }
             }),
           ),
+          ?_selectionError(context, showErrors && _injuryStatus == null),
           VikzarExpandableSection(
             expanded: _injuryStatus == InjuryHistoryStatus.previously,
             child: VikzarChipGroup<InjuryType>(

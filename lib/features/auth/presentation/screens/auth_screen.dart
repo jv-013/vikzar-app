@@ -162,7 +162,7 @@ class _EmailStep extends StatelessWidget {
         Text('Sign in or create your account.', style: theme.textTheme.headlineLarge),
         const SizedBox(height: SpacingTokens.space12),
         Text(
-          "We'll email you a 6-digit code — no password to remember.",
+          'Enter your email to continue.',
           style: theme.textTheme.bodyLarge?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -271,6 +271,14 @@ class _OtpStep extends StatelessWidget {
           enabled: !isLoading,
           errorText: errorText,
           onCompleted: onCompleted,
+        ),
+        const SizedBox(height: SpacingTokens.space12),
+        Text(
+          "Code verification isn't live yet — any 6-digit code is "
+          'accepted while this is in development.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: SpacingTokens.space24),
         Align(

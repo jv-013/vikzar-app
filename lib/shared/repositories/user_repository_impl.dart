@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/errors/failure.dart';
+import '../../core/errors/firestore_failure_mapper.dart';
 import '../../core/result/result.dart';
 import '../../services/firebase/firestore_service.dart';
 import '../models/app_user.dart';
@@ -27,10 +27,8 @@ class UserRepositoryImpl implements UserRepository {
           yield Result.success(AppUser.fromMap(data, uid: uid));
         }
       }
-    } on FirebaseException catch (e) {
-      yield Result.failure(_mapException(e));
     } catch (e) {
-      yield Result.failure(UnknownFailure(cause: e));
+      yield Result.failure(mapFirestoreError(e));
     }
   }
 
@@ -110,10 +108,8 @@ class UserRepositoryImpl implements UserRepository {
         transaction.set(docRef, update, SetOptions(merge: true));
       });
       return const Result.success(null);
-    } on FirebaseException catch (e) {
-      return Result.failure(_mapException(e));
     } catch (e) {
-      return Result.failure(UnknownFailure(cause: e));
+      return Result.failure(mapFirestoreError(e));
     }
   }
 
@@ -151,21 +147,9 @@ class UserRepositoryImpl implements UserRepository {
           .doc(uid)
           .set(data, SetOptions(merge: true));
       return const Result.success(null);
-    } on FirebaseException catch (e) {
-      return Result.failure(_mapException(e));
     } catch (e) {
-      return Result.failure(UnknownFailure(cause: e));
+      return Result.failure(mapFirestoreError(e));
     }
-  }
-
-  Failure _mapException(FirebaseException e) {
-    if (e.code == 'permission-denied') {
-      return PermissionFailure(message: e.code, cause: e);
-    }
-    if (e.code == 'unavailable') {
-      return NetworkFailure(message: e.code, cause: e);
-    }
-    return UnknownFailure(message: e.code, cause: e);
   }
 }
 

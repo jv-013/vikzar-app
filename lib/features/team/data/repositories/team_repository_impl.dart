@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failure.dart';
+import '../../../../core/errors/firestore_failure_mapper.dart';
 import '../../../../core/result/result.dart';
 import '../../../../services/firebase/firestore_service.dart';
 import '../../domain/models/team.dart';
@@ -33,10 +34,8 @@ class TeamRepositoryImpl implements TeamRepository {
         'updatedAt': FieldValue.serverTimestamp(),
       });
       return Result.success(docRef.id);
-    } on FirebaseException catch (e) {
-      return Result.failure(_mapException(e));
     } catch (e) {
-      return Result.failure(UnknownFailure(cause: e));
+      return Result.failure(mapFirestoreError(e));
     }
   }
 
@@ -47,10 +46,8 @@ class TeamRepositoryImpl implements TeamRepository {
       final data = snapshot.data();
       if (data == null) return const Result.success(null);
       return Result.success(Team.fromMap(data, teamId: teamId));
-    } on FirebaseException catch (e) {
-      return Result.failure(_mapException(e));
     } catch (e) {
-      return Result.failure(UnknownFailure(cause: e));
+      return Result.failure(mapFirestoreError(e));
     }
   }
 
@@ -72,10 +69,8 @@ class TeamRepositoryImpl implements TeamRepository {
         'updatedAt': FieldValue.serverTimestamp(),
       });
       return const Result.success(null);
-    } on FirebaseException catch (e) {
-      return Result.failure(_mapException(e));
     } catch (e) {
-      return Result.failure(UnknownFailure(cause: e));
+      return Result.failure(mapFirestoreError(e));
     }
   }
 
@@ -102,10 +97,8 @@ class TeamRepositoryImpl implements TeamRepository {
         'joinedAt': FieldValue.serverTimestamp(),
       });
       return const Result.success(null);
-    } on FirebaseException catch (e) {
-      return Result.failure(_mapException(e));
     } catch (e) {
-      return Result.failure(UnknownFailure(cause: e));
+      return Result.failure(mapFirestoreError(e));
     }
   }
 
@@ -119,21 +112,9 @@ class TeamRepositoryImpl implements TeamRepository {
             TeamMember.fromMap(doc.data(), uid: doc.id),
         ]);
       }
-    } on FirebaseException catch (e) {
-      yield Result.failure(_mapException(e));
     } catch (e) {
-      yield Result.failure(UnknownFailure(cause: e));
+      yield Result.failure(mapFirestoreError(e));
     }
-  }
-
-  Failure _mapException(FirebaseException e) {
-    if (e.code == 'permission-denied') {
-      return PermissionFailure(message: e.code, cause: e);
-    }
-    if (e.code == 'unavailable') {
-      return NetworkFailure(message: e.code, cause: e);
-    }
-    return UnknownFailure(message: e.code, cause: e);
   }
 }
 
