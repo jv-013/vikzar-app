@@ -2,7 +2,7 @@
 
 **Know Every Impact.**
 
-Vikzar is a sports technology platform focused on football injury prevention. This repository contains the companion application software for Vikzar wearable hardware — the single Flutter codebase used by players, coaches, and (in future phases) clinical staff to monitor impact exposure, training load, and injury risk.
+Vikzar is a sports performance and biomechanics analytics platform for football. This repository contains the companion application software for Vikzar wearable hardware — the single Flutter codebase used by players, coaches, and (in future phases) clinical staff to monitor impact exposure, training load, and elevated injury risk.
 
 This README is the entry point to the project. It explains what Vikzar is, what hardware it works with, how the software is expected to evolve, and how this repository is organized.
 
@@ -93,5 +93,7 @@ The app now has a complete identity, onboarding, and application-shell experienc
 ## Status
 
 **Current phase:** Identity & Access, the complete onboarding experience, and the first application shell (Player Home, Coach Home, navigation, Settings, Profile, Notifications) are all done (Roadmap [Phase 4 — Authentication](ROADMAP.md#phase-4--authentication)). A single-workspace account (every new account, always — Coach access is never automatic, requested via "Become a Coach" and never auto-granted) sees no hint that a second workspace exists; an account holding both workspaces can switch between them instantly, locally, no logout. The official Vikzar brand marks are imported and in use; typography is frozen (Inter for body text, implemented; Nohemi for headings, decided but its font asset not yet sourced). Live Team Monitoring, real session/Timeline/History content, Bluetooth, and any backend writes remain unbuilt — those begin in later phases.
+
+**Firebase:** still running against a placeholder configuration. `firebase-tools` and `flutterfire_cli` are installed; connecting a real project requires the project owner's own `firebase login` and an interactive `flutterfire configure` run — see [DECISIONS.md ADR-050](DECISIONS.md#adr-050-production-firebase-connection-requires-the-project-owners-own-credentials--cannot-be-completed-by-an-agent) for the exact commands.
 
 See [ROADMAP.md](ROADMAP.md) for what comes next.

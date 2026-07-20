@@ -9,16 +9,17 @@ import 'app.dart';
 
 /// App bootstrap, per FLUTTER_ARCHITECTURE.md §1 and §14.
 ///
-/// Phase 5 adds real Firebase initialization and `SharedPreferences` setup
-/// — both genuinely needed now that Authentication and the local-only
-/// active-workspace store (DECISIONS.md ADR-031) exist. Firebase is
-/// initialized against **placeholder credentials**
-/// (`firebase_options_placeholder.dart`) since no real project exists yet
-/// — per this phase's explicit instruction to use placeholder
-/// configuration when production credentials are unavailable. This is a
+/// Firebase is initialized against **placeholder credentials**
+/// (`firebase_options_placeholder.dart`) — connecting the real, production
+/// Firebase project is Phase 8A's explicit scope, but completing it
+/// requires the project owner's own `firebase login` and an interactive
+/// `flutterfire configure` run this codebase cannot perform on its own
+/// (see DECISIONS.md ADR-050 for the exact commands). This is a
 /// deliberate, documented limitation, not an oversight: every Firebase
 /// call in this app is written to fail gracefully (mapped to a `Failure`,
 /// shown as a calm error state) against these credentials, never to crash.
+/// Swapping in the real, generated configuration once it exists is a
+/// two-line change — see `firebase_options_placeholder.dart`'s doc comment.
 ///
 /// The three-flavor `main_development.dart` / `main_staging.dart` /
 /// `main_production.dart` split from FLUTTER_ARCHITECTURE.md §14 remains

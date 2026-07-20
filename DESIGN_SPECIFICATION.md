@@ -66,7 +66,7 @@ Everything else in this document — the laptop-centric MVP architecture, the ab
 |---|---|
 | Name | VIKZAR |
 | Tagline | Know Every Impact. |
-| Category | Football injury intelligence platform — explicitly not a workout app, fitness app, running tracker, or sports social network |
+| Category | Football biomechanics and performance analytics platform — explicitly not a workout app, fitness app, running tracker, or sports social network |
 | Feeling | Precision, confidence, elite technology, trust, performance, calm, professionalism |
 
 ### Logo and Icon

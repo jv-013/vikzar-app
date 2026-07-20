@@ -2,25 +2,32 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 
-/// **Placeholder Firebase configuration.**
+/// **Placeholder Firebase configuration — pending Phase 8A completion.**
 ///
-/// No Firebase project exists yet — creating one requires Firebase/GCP
-/// console access this session does not have (an infrastructure/account
-/// action, not a code one; see BACKEND_SPECIFICATION.md §3's ingestion
-/// principal for the same class of "out of this repository's scope" note).
-/// Per this phase's explicit instruction — "use placeholder Firebase
-/// configuration if production credentials are unavailable" — every value
-/// below is a well-formed but fake placeholder, structured exactly as the
-/// FlutterFire CLI (`flutterfire configure`) would generate it, so
-/// replacing this file with the real, generated one is a drop-in swap.
+/// No real Firebase project is connected yet. Doing so requires the
+/// project owner's own Firebase account (`firebase login`) and an
+/// interactive project-selection step (`flutterfire configure`) — neither
+/// is something this codebase can do on its own, and guessing a project
+/// ID/API key would be worse than an honest placeholder. Every value below
+/// is well-formed but fake, structured exactly as the FlutterFire CLI
+/// would generate it, so the swap is small once it's run:
 ///
-/// **Consequence:** any call that reaches Firebase (sign-in, Firestore
-/// reads/writes) will fail against these credentials. That failure is
-/// expected and handled — every repository maps it to a `Failure` and the
-/// UI shows the calm, standard error state (`core/errors/failure_message_mapper.dart`)
-/// — not a crash. This is a real, honest limitation of this phase, not a
-/// bug: it is flagged in `README.md`, `CHANGELOG.md`, and this file so it
-/// is never mistaken for a working backend.
+/// 1. `flutterfire configure` (see DECISIONS.md ADR-050 for the exact
+///    commands and prerequisites) generates `lib/firebase_options.dart`,
+///    exporting `DefaultFirebaseOptions`.
+/// 2. In `app/bootstrap.dart`, change the import from
+///    `firebase_options_placeholder.dart` to `firebase_options.dart` and
+///    `PlaceholderFirebaseOptions.currentPlatform` to
+///    `DefaultFirebaseOptions.currentPlatform`.
+/// 3. Delete this file.
+///
+/// **Consequence until then:** any call that reaches Firebase (sign-in,
+/// Firestore reads/writes) fails against these credentials. That failure
+/// is expected and handled — every repository maps it to a `Failure` and
+/// the UI shows the calm, standard error state
+/// (`core/errors/failure_message_mapper.dart`) — not a crash. Flagged in
+/// `README.md`, `CHANGELOG.md`, and this file so it is never mistaken for
+/// a working backend.
 abstract final class PlaceholderFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) return web;
