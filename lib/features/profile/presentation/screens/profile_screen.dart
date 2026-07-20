@@ -7,9 +7,10 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../../../design_system/components/vikzar_list_row.dart';
 import '../../../../design_system/tokens/spacing.dart';
 import '../../../../routing/app_router.dart';
+import '../../../../shared/models/coach_profile.dart';
+import '../../../../shared/models/player_profile.dart';
 import '../../../../shared/models/workspace_type.dart';
-import '../../../onboarding/presentation/controllers/coach_onboarding_controller.dart';
-import '../../../onboarding/presentation/controllers/player_onboarding_controller.dart';
+import '../../../../shared/providers/current_app_user_provider.dart';
 import '../widgets/edit_profile_sheet.dart';
 
 final appVersionProvider = FutureProvider<String>((ref) async {
@@ -33,9 +34,7 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isPlayer = workspace == WorkspaceType.player;
-    final name = isPlayer
-        ? ref.watch(playerOnboardingControllerProvider.select((d) => d.profile.name))
-        : ref.watch(coachOnboardingControllerProvider.select((d) => d.profile.name));
+    final name = ref.watch(currentAppUserProvider)?.displayName ?? '';
     final versionAsync = ref.watch(appVersionProvider);
 
     return Scaffold(
@@ -112,7 +111,7 @@ class ProfileScreen extends ConsumerWidget {
 }
 
 List<Widget> _playerAboutRows(WidgetRef ref) {
-  final profile = ref.watch(playerOnboardingControllerProvider).profile;
+  final profile = ref.watch(currentAppUserProvider)?.playerProfile ?? const PlayerProfile();
   return [
     VikzarListRow(title: 'Age', subtitle: profile.age?.toString() ?? 'Not set'),
     VikzarListRow(
@@ -124,16 +123,16 @@ List<Widget> _playerAboutRows(WidgetRef ref) {
 }
 
 List<Widget> _coachAboutRows(WidgetRef ref) {
-  final profile = ref.watch(coachOnboardingControllerProvider).profile;
+  final profile = ref.watch(currentAppUserProvider)?.coachProfile ?? const CoachProfile();
   return [
     VikzarListRow(title: 'Age', subtitle: profile.age?.toString() ?? 'Not set'),
     VikzarListRow(
       title: 'Coaching Title/Role',
-      subtitle: profile.title.isEmpty ? 'Not set' : profile.title,
+      subtitle: (profile.title ?? '').isEmpty ? 'Not set' : profile.title!,
     ),
     VikzarListRow(
       title: 'Club/Organization',
-      subtitle: profile.club.isEmpty ? 'Not set' : profile.club,
+      subtitle: (profile.club ?? '').isEmpty ? 'Not set' : profile.club!,
     ),
   ];
 }

@@ -4,14 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/auth/data/repositories/auth_repository_impl.dart';
 import '../features/auth/domain/models/auth_state.dart';
 import '../features/workspace/presentation/controllers/active_workspace_controller.dart';
-import '../services/local_storage/onboarding_progress_store.dart';
+import '../shared/models/app_user.dart';
 import '../shared/models/workspace_type.dart';
 import '../shared/repositories/user_repository_impl.dart';
 
 /// Where the router should currently be, computed from auth state, the
-/// local active-workspace pointer, and the local onboarding-completion
-/// record — with the user's Firestore profile consulted only as a
-/// fallback for a *new device* on an *existing* account.
+/// local active-workspace pointer, and — **revised at Phase 8B**, per
+/// DECISIONS.md ADR-051 — the user's Firestore `users/{uid}` document,
+/// which is now the source of truth for which workspace(s) an account has
+/// actually completed onboarding for (`workspaces.has(type)`), not a local
+/// flag. The active-workspace *pointer* itself remains local-only, per
+/// ADR-031/ADR-052 — only the *completion* signal moved to Firestore.
 sealed class RouteDestination {
   const RouteDestination();
 }
@@ -41,12 +44,10 @@ final class InOnboarding extends RouteDestination {
   final WorkspaceType workspace;
 }
 
-/// Authenticated, workspace chosen, and this device has already completed
-/// that workspace's onboarding (`OnboardingProgressStore`, per
-/// [DECISIONS.md ADR-046]) — the main application shell (Home, Timeline,
-/// Settings, Notifications, everything under `/{workspace}/**`). Revised
-/// at Phase 7: this used to mean "stay on the Onboarding Complete screen
-/// forever"; it now means "the app shell."
+/// Authenticated, workspace chosen, and Firestore records that workspace
+/// as onboarded (`users/{uid}.workspaces.{type}` present, per
+/// BACKEND_SPECIFICATION.md §1.5) — the main application shell (Home,
+/// Timeline, Settings, Notifications, everything under `/{workspace}/**`).
 final class InApp extends RouteDestination {
   const InApp(this.workspace);
 
@@ -67,39 +68,38 @@ final routeDestinationProvider = Provider<RouteDestination>((ref) {
     data: (authState) {
       if (authState is! Authenticated) return const GoToAuth();
 
-      final activeWorkspace = ref.watch(activeWorkspaceProvider);
-      if (activeWorkspace != null) {
-        return _destinationFor(ref, activeWorkspace);
-      }
-
-      // No local pointer yet on this device. Fall back to Firestore's
-      // defaultWorkspace, which only exists if this account already
-      // completed onboarding on a *different* device in some prior
-      // session — today that can't actually happen (no Cloud Function
-      // writes it yet, per DECISIONS.md ADR-041), but the check costs
-      // nothing and keeps this logic correct once one exists.
+      // Onboarding completion now lives in Firestore (ADR-051), so every
+      // path below needs this document, not just the "no local pointer
+      // yet" fallback Phase 7 had. Firestore's offline persistence
+      // (services/firebase/firestore_service.dart) keeps this fast on
+      // repeat launches even offline — only a brand-new device/session
+      // sees a real network round-trip here.
       final userAsync = ref.watch(watchUserProvider(authState.uid));
       return userAsync.when(
         loading: () => const StayOnSplash(),
-        error: (_, _) => const GoToWorkspaceSelection(),
+        error: (_, _) => const StayOnSplash(),
         data: (result) => result.fold(
-          onSuccess: (user) {
-            final fallback = user?.defaultWorkspace;
-            if (fallback == null) return const GoToWorkspaceSelection();
-            return _destinationFor(ref, fallback);
-          },
+          onSuccess: (user) => _destinationForUser(ref, user),
           // A missing/unreadable profile document is treated the same as
           // "no workspace recorded yet."
-          onFailure: (_) => const GoToWorkspaceSelection(),
+          onFailure: (_) => _destinationForUser(ref, null),
         ),
       );
     },
   );
 });
 
-RouteDestination _destinationFor(Ref ref, WorkspaceType workspace) {
-  final completed = ref.watch(onboardingCompletionProvider).contains(workspace);
-  return completed ? InApp(workspace) : InOnboarding(workspace);
+RouteDestination _destinationForUser(Ref ref, AppUser? user) {
+  // The active-workspace *pointer* is always local-only (ADR-031/ADR-052);
+  // it's set as soon as Workspace Selection is confirmed, before that
+  // workspace's onboarding is necessarily complete. Fall back to
+  // Firestore's `defaultWorkspace` only when this device has no local
+  // pointer yet (e.g. a new device on an existing account).
+  final workspace = ref.watch(activeWorkspaceProvider) ?? user?.defaultWorkspace;
+  if (workspace == null) return const GoToWorkspaceSelection();
+
+  final hasCompletedOnboarding = user?.workspaces.has(workspace) ?? false;
+  return hasCompletedOnboarding ? InApp(workspace) : InOnboarding(workspace);
 }
 
 /// Bridges Riverpod state changes to go_router's `refreshListenable`,

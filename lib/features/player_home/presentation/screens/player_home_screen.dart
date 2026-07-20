@@ -7,8 +7,8 @@ import '../../../../design_system/theme/vikzar_elevation.dart';
 import '../../../../design_system/tokens/radius.dart';
 import '../../../../design_system/tokens/spacing.dart';
 import '../../../../routing/app_router.dart';
+import '../../../../shared/providers/current_app_user_provider.dart';
 import '../../../../shared/widgets/section_empty_state.dart';
-import '../../../onboarding/presentation/controllers/player_onboarding_controller.dart';
 
 /// Player Home — DESIGN_SPECIFICATION.md §19.2, revised Phase 7. "A
 /// premium performance instrument panel," not a form: Greeting, Connected
@@ -107,15 +107,14 @@ class PlayerHomeScreen extends ConsumerWidget {
 
 String _greeting(String? name) => name == null ? 'Good to see you.' : 'Hi, $name.';
 
-/// Prefers the name collected during onboarding (still live in this
-/// session's Riverpod state); falls back to nothing rather than showing a
-/// stale/empty value — no Firestore profile-fields read exists yet for
-/// this data (only auth email/uid), per this phase's scope.
+/// Reads `displayName` from Firestore's `users/{uid}` document (Phase 8B —
+/// previously the in-memory onboarding controller's still-live name).
+/// Falls back to nothing rather than showing a stale/empty value.
 String? _greetingName(WidgetRef ref) {
-  final onboardingName = ref.watch(
-    playerOnboardingControllerProvider.select((data) => data.profile.name),
-  );
-  if (onboardingName.trim().isNotEmpty) return onboardingName.trim().split(' ').first;
+  final displayName = ref.watch(currentAppUserProvider)?.displayName;
+  if (displayName != null && displayName.trim().isNotEmpty) {
+    return displayName.trim().split(' ').first;
+  }
   return null;
 }
 

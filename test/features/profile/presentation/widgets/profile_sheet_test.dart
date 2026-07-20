@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:vikzar/design_system/theme/app_theme.dart';
 import 'package:vikzar/features/profile/presentation/widgets/profile_sheet.dart';
-import 'package:vikzar/services/local_storage/shared_preferences_provider.dart';
 import 'package:vikzar/shared/models/workspace_type.dart';
+import 'package:vikzar/shared/providers/current_app_user_provider.dart';
 
+/// **Revised at Phase 8B:** "holds" is now Firestore's `workspaces`
+/// (DECISIONS.md ADR-051), read via [heldWorkspacesProvider] — overridden
+/// directly here rather than wiring up `authStateProvider` +
+/// `watchUserProvider`.
 Future<void> _pumpSheet(
   WidgetTester tester, {
   required WorkspaceType workspace,
-  required Map<String, Object> prefsValues,
+  required List<WorkspaceType> held,
 }) async {
-  SharedPreferences.setMockInitialValues(prefsValues);
-  final prefs = await SharedPreferences.getInstance();
-
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      overrides: [heldWorkspacesProvider.overrideWithValue(held)],
       child: MaterialApp(
         theme: AppTheme.dark(),
         home: Scaffold(
@@ -43,7 +43,7 @@ void main() {
       await _pumpSheet(
         tester,
         workspace: WorkspaceType.player,
-        prefsValues: {'onboarding_complete_player': true},
+        held: const [WorkspaceType.player],
       );
 
       expect(find.text('Profile'), findsOneWidget);
@@ -59,7 +59,7 @@ void main() {
       await _pumpSheet(
         tester,
         workspace: WorkspaceType.coach,
-        prefsValues: {'onboarding_complete_coach': true},
+        held: const [WorkspaceType.coach],
       );
 
       expect(find.text('Become a Coach'), findsNothing);
@@ -71,10 +71,7 @@ void main() {
       await _pumpSheet(
         tester,
         workspace: WorkspaceType.player,
-        prefsValues: {
-          'onboarding_complete_player': true,
-          'onboarding_complete_coach': true,
-        },
+        held: const [WorkspaceType.player, WorkspaceType.coach],
       );
 
       expect(find.text('Switch Workspace'), findsOneWidget);

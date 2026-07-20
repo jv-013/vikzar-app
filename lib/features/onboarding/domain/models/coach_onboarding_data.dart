@@ -1,17 +1,17 @@
 /// Coach onboarding field options and in-memory collected data —
-/// DESIGN_SPECIFICATION.md §19.1, steps 2–5b. Nothing here is persisted to
-/// Firestore this phase — same reasoning as `player_onboarding_data.dart`.
-enum CoachingLevel {
-  academy,
-  club,
-  professional;
+/// DESIGN_SPECIFICATION.md §19.1, steps 2–5b.
+///
+/// **Revised at Phase 8B:** `CoachingLevel` now lives in
+/// `shared/models/coach_profile.dart` (same reasoning as `PlayingLevel` in
+/// `player_onboarding_data.dart`) and is re-exported below. [CoachProfileData]
+/// remains onboarding-flow-local scratch state; [toCoachProfile] converts
+/// it to the shared, persisted shape once [isComplete].
+library;
 
-  String get label => switch (this) {
-    CoachingLevel.academy => 'Academy',
-    CoachingLevel.club => 'Club',
-    CoachingLevel.professional => 'Professional',
-  };
-}
+import '../../../../shared/models/coach_profile.dart';
+
+export '../../../../shared/models/coach_profile.dart'
+    show CoachingLevel, CoachProfile;
 
 class CoachProfileData {
   const CoachProfileData({
@@ -100,4 +100,14 @@ class CoachOnboardingData {
       team: team ?? this.team,
     );
   }
+
+  /// Converts the collected onboarding data into the shape persisted at
+  /// `users/{uid}.coachProfile` (BACKEND_SPECIFICATION.md §1.5, Added
+  /// Phase 8B). Callers should only do this once [profile.isComplete].
+  CoachProfile toCoachProfile() => CoachProfile(
+    level: level,
+    age: profile.age,
+    title: profile.title,
+    club: profile.club,
+  );
 }

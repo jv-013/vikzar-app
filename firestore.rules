@@ -1,0 +1,187 @@
+rules_version = '2';
+
+// Vikzar Firestore Security Rules — generated at Phase 8B to match
+// BACKEND_SPECIFICATION.md §15 (Security Rules Strategy), as revised by
+// DECISIONS.md ADR-051 (client-direct writes for workspace/team/onboarding
+// state, MVP self-service model). This governs the Flutter Application's
+// direct access only — Cloud Functions run with Admin privileges and are
+// never subject to these rules (BACKEND_SPECIFICATION.md §15, §0).
+//
+// NOT DEPLOYED. This file is created per Phase 8B's explicit instruction
+// ("Do not deploy. Only create them.") — deploying requires a project
+// owner decision and `firebase deploy --only firestore:rules`, run
+// deliberately, outside this phase's scope.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Helpers ----------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function teamDoc(teamId) {
+      return get(/databases/$(database)/documents/teams/$(teamId)).data;
+    }
+
+    // BACKEND_SPECIFICATION.md §15: "Every rule of the form 'coach of
+    // teamId' is implemented as: request.auth.uid in
+    // get(.../teams/$(teamId)).data.coachIds."
+    function isCoachOfTeam(teamId) {
+      return isSignedIn() && request.auth.uid in teamDoc(teamId).coachIds;
+    }
+
+    function isMemberOfTeam(teamId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid));
+    }
+
+    // ---- organizations/{orgId} ---------------------------------------
+    // Read: members of any team under this org. No UI reads this
+    // collection yet (Coach Home has no team/org pipeline this phase);
+    // approximated via the reader's own denormalized `primaryOrgId`
+    // (§1.5), since Rules cannot efficiently reverse-query "any team
+    // under this org."
+    match /organizations/{orgId} {
+      allow read: if isSignedIn() && userDoc(request.auth.uid).primaryOrgId == orgId;
+      allow write: if false; // administrative provisioning only
+    }
+
+    // ---- teams/{teamId} -----------------------------------------------
+    match /teams/{teamId} {
+      allow read: if isCoachOfTeam(teamId) || isMemberOfTeam(teamId);
+
+      // Self-service creation (ADR-051): the creator becomes the sole
+      // initial coach. Denormalized `orgId` is optional/absent until a
+      // future org-affiliation flow exists (§1.2, revised Phase 8B).
+      allow create: if isSignedIn() &&
+        request.resource.data.coachIds == [request.auth.uid];
+
+      // A coach may update `name`/`ageGroup` at any time. Any
+      // authenticated user may self-add to `coachIds` via arrayUnion
+      // (join-as-coach, using the teamId itself as the join code, per
+      // §1.2's Phase 8B revision) — but never remove or replace another
+      // coach's entry.
+      allow update: if (isCoachOfTeam(teamId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'ageGroup', 'updatedAt'])) ||
+        (isSignedIn() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coachIds', 'updatedAt']) &&
+          request.resource.data.coachIds == resource.data.coachIds.concat([request.auth.uid]));
+
+      allow delete: if false;
+
+      // ---- teams/{teamId}/members/{uid} -------------------------------
+      match /members/{memberUid} {
+        allow read: if isCoachOfTeam(teamId) || isMemberOfTeam(teamId);
+
+        // A coach manages any roster entry; a player may only create
+        // their own (self-service Join Team, ADR-051) — never someone
+        // else's.
+        allow create: if isCoachOfTeam(teamId) || isSelf(memberUid);
+        allow update: if isCoachOfTeam(teamId);
+        allow delete: if isCoachOfTeam(teamId);
+      }
+
+      // ---- teams/{teamId}/liveMonitoring/{playerId} -------------------
+      match /liveMonitoring/{playerId} {
+        allow read: if isCoachOfTeam(teamId) || isSelf(playerId);
+        allow write: if false; // Cloud Function fan-out only
+      }
+    }
+
+    // ---- users/{uid} ---------------------------------------------------
+    match /users/{uid} {
+      // Self; a coach of the team this user's Player workspace belongs
+      // to (roster/profile visibility, §5).
+      allow read: if isSelf(uid) ||
+        (isSignedIn() &&
+          resource.data.workspaces.player != null &&
+          resource.data.workspaces.player.teamId != null &&
+          isCoachOfTeam(resource.data.workspaces.player.teamId));
+
+      allow create: if isSelf(uid);
+
+      // Self-scoped writes only. `careerStats` remains denied — no
+      // session pipeline exists to derive it from yet.
+      allow update: if isSelf(uid) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'uid', 'email', 'displayName', 'avatarUrl', 'fcmTokens',
+          'workspaces', 'defaultWorkspace', 'playerProfile', 'coachProfile',
+          'status', 'createdAt', 'updatedAt',
+        ]) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['careerStats']);
+
+      allow delete: if false;
+
+      // ---- users/{uid}/notifications/{notificationId} -----------------
+      match /notifications/{notificationId} {
+        allow read: if isSelf(uid);
+        allow create: if false; // Cloud Function only
+        allow update: if isSelf(uid) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+        allow delete: if false;
+      }
+    }
+
+    // ---- coachRequests/{requestId} -------------------------------------
+    // Added Phase 8B (§1.12). Creation only — no admin-approval flow in
+    // this codebase yet (ADR-049/ADR-051).
+    match /coachRequests/{requestId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ---- devices/{deviceId} ---------------------------------------------
+    match /devices/{deviceId} {
+      allow read: if isSignedIn() &&
+        (resource.data.ownerId == request.auth.uid || isCoachOfTeam(resource.data.assignedTeamId));
+      allow update: if isSignedIn() && isCoachOfTeam(resource.data.assignedTeamId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId', 'assignedTeamId', 'status', 'updatedAt']);
+      allow create: if false; // no device-provisioning UI this phase
+      allow delete: if false;
+    }
+
+    // ---- sessions/{sessionId} (+ live/current) ---------------------------
+    match /sessions/{sessionId} {
+      allow read: if isSignedIn() &&
+        (resource.data.playerId == request.auth.uid || isCoachOfTeam(resource.data.teamId));
+      allow write: if false; // Cloud Function only
+
+      match /live/current {
+        allow read: if isSignedIn() &&
+          (get(/databases/$(database)/documents/sessions/$(sessionId)).data.playerId == request.auth.uid ||
+           isCoachOfTeam(get(/databases/$(database)/documents/sessions/$(sessionId)).data.teamId));
+        allow write: if false; // Cloud Function only
+      }
+    }
+
+    // ---- alerts/{alertId} -------------------------------------------------
+    match /alerts/{alertId} {
+      allow read: if isSignedIn() &&
+        (resource.data.playerId == request.auth.uid || isCoachOfTeam(resource.data.teamId));
+      allow create: if false; // Cloud Function only
+      allow update: if isCoachOfTeam(resource.data.teamId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acknowledged', 'acknowledgedBy', 'acknowledgedAt']);
+      allow delete: if false;
+    }
+
+    // ---- reports/{reportId} ------------------------------------------------
+    match /reports/{reportId} {
+      allow read: if isSignedIn() &&
+        (resource.data.playerId == request.auth.uid || isCoachOfTeam(resource.data.teamId));
+      allow write: if false; // Cloud Function only
+    }
+  }
+}

@@ -7,8 +7,8 @@ import '../../../../design_system/theme/vikzar_elevation.dart';
 import '../../../../design_system/tokens/radius.dart';
 import '../../../../design_system/tokens/spacing.dart';
 import '../../../../routing/app_router.dart';
+import '../../../../shared/providers/current_app_user_provider.dart';
 import '../../../../shared/widgets/section_empty_state.dart';
-import '../../../onboarding/presentation/controllers/coach_onboarding_controller.dart';
 
 /// Coach Home — DESIGN_SPECIFICATION.md §19.3, revised Phase 7.
 /// Deliberately **a different rhythm from Player Home** — team-level, not
@@ -104,10 +104,10 @@ class CoachHomeScreen extends ConsumerWidget {
 String _greeting(String? name) => name == null ? 'Good to see you, Coach.' : 'Hi, $name.';
 
 String? _greetingName(WidgetRef ref) {
-  final onboardingName = ref.watch(
-    coachOnboardingControllerProvider.select((data) => data.profile.name),
-  );
-  if (onboardingName.trim().isNotEmpty) return onboardingName.trim().split(' ').first;
+  final displayName = ref.watch(currentAppUserProvider)?.displayName;
+  if (displayName != null && displayName.trim().isNotEmpty) {
+    return displayName.trim().split(' ').first;
+  }
   return null;
 }
 

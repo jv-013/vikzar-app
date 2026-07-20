@@ -4,8 +4,8 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../../design_system/tokens/radius.dart';
 import '../../../../design_system/tokens/spacing.dart';
-import '../../../../services/local_storage/onboarding_progress_store.dart';
 import '../../../../shared/models/workspace_type.dart';
+import '../../../../shared/providers/current_app_user_provider.dart';
 import 'profile_sheet.dart';
 
 /// The top-left app-bar control — DESIGN_SPECIFICATION.md §13's Phase 7
@@ -20,11 +20,11 @@ import 'profile_sheet.dart';
 /// workspace concept exists. Only once the account holds both workspaces
 /// does the badge grow a chevron.
 ///
-/// "Holds" here means [onboardingCompletionProvider] — which workspaces
-/// this *device* has completed onboarding for — not Firestore's
-/// `workspaces` field, which no Cloud Function populates yet (see
-/// DECISIONS.md ADR-041/046). This is the same local-state source the
-/// router itself already uses to decide whether a workspace is "in app."
+/// **Revised at Phase 8B:** "holds" now means [heldWorkspacesProvider] —
+/// Firestore's `users/{uid}.workspaces`, per DECISIONS.md ADR-051 —
+/// replacing Phase 7's local `onboardingCompletionProvider`. This is the
+/// same source `routing/route_guards.dart` uses to decide whether a
+/// workspace is "in app."
 class ProfileBadge extends ConsumerWidget {
   const ProfileBadge({super.key, required this.workspace});
 
@@ -34,7 +34,7 @@ class ProfileBadge extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final heldWorkspaces = ref.watch(onboardingCompletionProvider);
+    final heldWorkspaces = ref.watch(heldWorkspacesProvider);
     final isDual = heldWorkspaces.length > 1;
 
     return InkWell(

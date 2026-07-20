@@ -93,7 +93,7 @@ A squad within an organization.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `teamId` | string | Yes | Document ID. |
-| `orgId` | string | Yes | Reference to `organizations/{orgId}`. |
+| `orgId` | string | No | Reference to `organizations/{orgId}`, if this team is affiliated with a provisioned organization. **Revised at Phase 8B:** optional, not required — a coach-created team has no organization until a future org-affiliation flow exists (see below). |
 | `name` | string | Yes | Team display name. |
 | `ageGroup` | string | No | Free text, e.g. `"U18"`, `"Senior"`. |
 | `coachIds` | array&lt;string&gt; | Yes | Firebase Auth uids of coaches for this team. Array supports multiple coaches per team. |
@@ -102,7 +102,9 @@ A squad within an organization.
 | `createdAt` | timestamp | Yes | |
 | `updatedAt` | timestamp | Yes | |
 
-**Written by:** Flutter Application (coach, for `name`/`ageGroup` only, via Security Rules), administrative provisioning (for `orgId`, `coachIds` at creation). **Read by:** Flutter Application (coaches and members of the team).
+**Written by:** Flutter Application (coach, for `name`/`ageGroup` via Security Rules at any time; for the full document including self-claimed `coachIds: [self]` at creation only — **revised at Phase 8B**, see [DECISIONS.md ADR-051](DECISIONS.md#adr-051-client-direct-firestore-writes-for-workspace-team-and-onboarding-state-mvp-self-service-model)), administrative provisioning (for `orgId`, once an org-affiliation flow exists). **Read by:** Flutter Application (coaches and members of the team).
+
+**Join code, Phase 8B:** there is no separate invite-code field. The `teamId` itself is the value shared and entered to join — by a player joining as a roster member (§1.3) or by a second coach joining an existing team's `coachIds` — this keeps the schema unchanged rather than inventing a field this document did not already define.
 
 ### 1.3 `teams/{teamId}/members/{uid}`
 
@@ -119,7 +121,7 @@ Subcollection: roster entry for a player on this team. Document ID equals the pl
 | `status` | string (enum) | Yes | One of `active`, `injured`, `inactive`. |
 | `joinedAt` | timestamp | Yes | |
 
-**Written by:** Flutter Application (coach only, for roster management fields), Cloud Function (denormalized `displayName`/`avatarUrl` sync on profile change). **Read by:** Flutter Application (team members and coach).
+**Written by:** Flutter Application (coach, for roster management fields on any member; a player, self-service, for their own member document only at Join Team time — **revised at Phase 8B**, see ADR-051), Cloud Function (denormalized `displayName`/`avatarUrl` sync on profile change). **Read by:** Flutter Application (team members and coach).
 
 ### 1.4 `teams/{teamId}/liveMonitoring/{playerId}`
 
@@ -159,6 +161,8 @@ Document ID equals the Firebase Auth uid. **Revised at the Phase 2 freeze review
 | `careerStats` | map | Yes | See below. Maintained by Cloud Function, never client-written. |
 | `fcmTokens` | array&lt;string&gt; | No | Registered push notification tokens for this user's devices. |
 | `status` | string (enum) | Yes | One of `active`, `inactive`. |
+| `playerProfile` | map | No | **Added Phase 8B.** Present once the Player workspace's onboarding is complete. See below. |
+| `coachProfile` | map | No | **Added Phase 8B.** Present once the Coach workspace's onboarding is complete. See below. |
 | `createdAt` | timestamp | Yes | |
 | `updatedAt` | timestamp | Yes | |
 
@@ -168,9 +172,17 @@ Document ID equals the Firebase Auth uid. **Revised at the Phase 2 freeze review
 
 This structure resolves an ambiguity the previous flat `teamIds` array had: an account holding both workspaces can now have its played-for team and its coached-for teams recorded distinctly, rather than merged into one undifferentiated array.
 
+**Onboarding completion signal, Phase 8B:** there is no separate `onboardingStatus` field. Presence of `workspaces.player` / `workspaces.coach` *is* the "onboarding complete for this workspace" signal — the key is written once, atomically, at the end of that workspace's onboarding flow (never before), so its presence and onboarding completion are definitionally the same fact. A second field tracking the same thing would only invite drift between the two.
+
+`playerProfile` map fields (**Added Phase 8B**, collected during Player onboarding; the map is written once as a whole at onboarding completion, mirroring the `.name` of each Dart enum exactly, per the same convention as `WorkspaceType.firestoreKey`): `level` (string enum: `academy`, `amateur`, `semiProfessional`, `professional`), `age` (number), `heightCm` (number, from `PlayerProfileData.height`), `weightKg` (number, from `.weight`), `preferredFoot` (string enum: `left`, `right`, `both`), `position` (string enum: `goalkeeper`, `defender`, `midfielder`, `forward`), `injuryStatus` (string enum: `never`, `previously`, `currentlyRecovering`), `injuryTypes` (array&lt;string&gt;, enum values `acl`/`meniscus`/`hamstring`/`ankle`/`other`, present when `injuryStatus != "never"`).
+
+`coachProfile` map fields (**Added Phase 8B**, collected during Coach onboarding): `level` (string enum: `academy`, `club`, `professional`), `age` (number), `title` (string, e.g. `"Head Coach"`), `club` (string, e.g. academy/club name).
+
+Runtime permission toggles (`PlayerPermissions`/`CoachPermissions` — Bluetooth, Motion, Notifications) are intentionally **not** part of either map: they are OS-level device permissions re-requested as needed, not durable user profile data.
+
 `careerStats` map fields: `totalSessions` (number), `totalImpacts` (number), `lastSessionAt` (timestamp, nullable), `averageRiskScore30d` (number, nullable).
 
-**Written by:** Flutter Application (self, for `displayName`/`avatarUrl`/`fcmTokens` only), Cloud Function (`careerStats`, `workspaces`, `defaultWorkspace` — the latter two require server-side validation, e.g. verifying a team invite code before adding a `coach` workspace, matching how `role`/`teamIds` were already Cloud-Function-written prior to this revision). **Read by:** Flutter Application (self; a coach may read profiles of players on a team they coach — §5).
+**Written by:** Flutter Application (self, for `displayName`/`avatarUrl`/`fcmTokens`, plus — **revised at Phase 8B**, see [DECISIONS.md ADR-051](DECISIONS.md#adr-051-client-direct-firestore-writes-for-workspace-team-and-onboarding-state-mvp-self-service-model) — `workspaces`, `defaultWorkspace`, `playerProfile`, `coachProfile`, self-service and self-scoped only, secured by Security Rules rather than Cloud Function validation since no Cloud Functions exist in this codebase yet), Cloud Function (`careerStats` only, once a session pipeline exists). **Read by:** Flutter Application (self; a coach may read profiles of players on a team they coach — §5).
 
 ### 1.6 `users/{uid}/notifications/{notificationId}`
 
@@ -298,6 +310,25 @@ Top-level collection. Comprehensive, often longer-form output — a single sessi
 | `status` | string (enum) | Yes | One of `draft`, `final`. |
 
 **Written by:** Cloud Function only (`submitReport` for laptop-originated session reports; `weeklySummaryAggregator` for scheduled rollups). **Never** client-written. **Read by:** Flutter Application (playerId == self; coach of `teamId`).
+
+### 1.12 `coachRequests/{requestId}`
+
+Top-level collection. **Added Phase 8B.** A player-held account's request to also gain a Coach workspace, submitted via "Become a Coach" ([DESIGN_SPECIFICATION.md](DESIGN_SPECIFICATION.md)). Submitting a request never grants the workspace — there is no admin approval tooling in this codebase yet (§17 lists no `reviewCoachRequest` function); this collection exists purely to durably record the request for a human to review out-of-band until that tooling is built.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `requestId` | string | Yes | Document ID. |
+| `uid` | string | Yes | The requesting account's Firebase Auth uid. |
+| `email` | string | Yes | Denormalized from `users/{uid}.email`, for reviewer convenience. |
+| `displayName` | string | Yes | Denormalized. |
+| `level` | string (enum) | Yes | See `CoachingLevel`. |
+| `club` | string | No | Club/academy name. |
+| `title` | string | No | Current role/title. |
+| `orgEmail` | string | No | Optional organizational email supplied for verification. |
+| `status` | string (enum) | Yes | One of `pending`, `approved`, `rejected`. Always written as `pending` by the client; only a future admin process transitions it. |
+| `createdAt` | timestamp | Yes | |
+
+**Written by:** Flutter Application (self, creation only, `status` always `pending`). **Never** client-updated after creation. **Read by:** Flutter Application (self, to see their own request's status — read-only, no in-app effect from status changes yet).
 
 ---
 
@@ -501,11 +532,12 @@ The governing pattern, established in [ARCHITECTURE.md §19](ARCHITECTURE.md#19-
 | Collection | Client Read | Client Write |
 |---|---|---|
 | `organizations/{orgId}` | Members of any team under this org | Denied — administrative provisioning only |
-| `teams/{teamId}` | Coach or member of this team | Coach of this team, `name`/`ageGroup` fields only |
-| `teams/{teamId}/members/{uid}` | Coach or member of this team | Coach of this team |
+| `teams/{teamId}` | Coach or member of this team | Coach of this team: `name`/`ageGroup` any time; full document, self-claiming `coachIds == [request.auth.uid]`, at creation only; any authenticated user may self-add to an existing team's `coachIds` via `arrayUnion` (adding only their own uid, never removing another coach) — **revised at Phase 8B**, see ADR-051 |
+| `teams/{teamId}/members/{uid}` | Coach or member of this team | Coach of this team, any member; a player, only their own `{uid}` document, create-only (Join Team) — **revised at Phase 8B** |
 | `teams/{teamId}/liveMonitoring/*` | Coach of this team; player may read their own entry | Denied — Cloud Function only |
-| `users/{uid}` | Self; coach of a team this user belongs to | Self, `displayName`/`avatarUrl`/`fcmTokens` only |
+| `users/{uid}` | Self; coach of a team this user belongs to | Self: `displayName`/`avatarUrl`/`fcmTokens` any time; `workspaces`, `defaultWorkspace`, `playerProfile`, `coachProfile` — self-scoped, no cross-account writes — **revised at Phase 8B**, see ADR-051. `careerStats` denied — Cloud Function only. |
 | `users/{uid}/notifications/*` | Self only | Self, `read` field only |
+| `coachRequests/{requestId}` | Self, own requests only — **Added Phase 8B** | Self, creation only, `uid == request.auth.uid` and `status == "pending"` |
 | `devices/{deviceId}` | Owner; coach of `assignedTeamId` | Coach of `assignedTeamId`, assignment fields only |
 | `sessions/{sessionId}` | `playerId == self`; coach of `teamId` | Denied — Cloud Function only |
 | `sessions/{sessionId}/live/current` | `playerId == self`; coach of `teamId` | Denied — Cloud Function only |
@@ -513,6 +545,8 @@ The governing pattern, established in [ARCHITECTURE.md §19](ARCHITECTURE.md#19-
 | `reports/{reportId}` | `playerId == self`; coach of `teamId` | Denied — Cloud Function only |
 
 Role and team-membership checks in Rules read the requester's own `users/{request.auth.uid}` document (per ADR-013 — role is not carried in the Auth token) and the relevant `teams/{teamId}.coachIds` array. Every rule of the form "coach of `teamId`" is implemented as: `request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.coachIds`.
+
+**Phase 8B note on self-service writes:** the fields marked "revised at Phase 8B" above were, in this document's original design, restricted to Cloud-Function-only writes so that a server process could validate them (e.g. confirming a team invite code before granting a `coach` workspace). No Cloud Functions codebase exists yet in this repository — consistent with every phase through 8A, which built the Flutter client only. Rather than leave workspace onboarding, team creation, and profile data as unpersisted placeholders indefinitely, Phase 8B opens these specific fields to direct, self-scoped client writes, protected by the Security Rules this document defines (not server-side validation). This is a deliberate, documented MVP tradeoff — see [DECISIONS.md ADR-051](DECISIONS.md#adr-051-client-direct-firestore-writes-for-workspace-team-and-onboarding-state-mvp-self-service-model) — not a silent scope change, and it is expected to be tightened (moved behind real Cloud Functions with server-side validation, e.g. real invite-code verification for joining a team) in a later phase.
 
 ---
 

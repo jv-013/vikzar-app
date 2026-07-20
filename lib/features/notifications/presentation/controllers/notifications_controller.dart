@@ -1,52 +1,55 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/providers/current_uid_provider.dart';
+import '../../data/repositories/notification_repository_impl.dart';
 import '../../domain/models/app_notification.dart';
 
-/// Placeholder notification data — DESIGN_SPECIFICATION.md §16 row 25.
-/// **No backend this phase**: no Firestore `users/{uid}/notifications`
-/// read, no FCM. The simulated delay gives the Notification Center's
-/// loading state something genuine to show; the seeded list is realistic
-/// (mirrors what a real welcome/profile-nudge notification would say) but
-/// entirely static.
-class NotificationsController extends AsyncNotifier<List<AppNotification>> {
+/// Streams `users/{uid}/notifications` from Firestore — **Revised at
+/// Phase 8B** (DECISIONS.md ADR-053), replacing the hardcoded two-item
+/// placeholder seed list. Since notification creation is Cloud-Function-only
+/// and no Cloud Functions exist yet ([NotificationRepository]'s doc
+/// comment), this collection is genuinely, honestly empty for every account
+/// today — the Notification Center's empty state is real, not simulated.
+class NotificationsController extends StreamNotifier<List<AppNotification>> {
   @override
-  Future<List<AppNotification>> build() async {
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    final now = DateTime.now();
-    return [
-      AppNotification(
-        id: 'welcome',
-        title: 'Welcome to Vikzar',
-        body: 'Your account is ready. Explore your Home to get started.',
-        timestamp: now.subtract(const Duration(minutes: 5)),
+  Stream<List<AppNotification>> build() {
+    final uid = ref.watch(currentUidProvider);
+    if (uid == null) return Stream.value(const []);
+
+    return ref.watch(notificationRepositoryProvider).watchNotifications(uid).map(
+      (result) => result.fold(
+        onSuccess: (notifications) => notifications,
+        onFailure: (failure) => throw failure,
       ),
-      AppNotification(
-        id: 'complete-profile',
-        title: 'Complete your profile',
-        body: 'Add your details so your coach can recognize you on the roster.',
-        timestamp: now.subtract(const Duration(hours: 3)),
-        read: true,
-      ),
-    ];
+    );
   }
 
-  void markAsRead(String id) {
+  Future<void> markAsRead(String id) async {
+    final uid = ref.read(currentUidProvider);
+    if (uid == null) return;
+    await ref
+        .read(notificationRepositoryProvider)
+        .markAsRead(uid: uid, notificationId: id);
+  }
+
+  Future<void> markAllAsRead() async {
+    final uid = ref.read(currentUidProvider);
     final current = state.value;
-    if (current == null) return;
-    state = AsyncData([
+    if (uid == null || current == null) return;
+
+    final unreadIds = [
       for (final notification in current)
-        if (notification.id == id) notification.copyWith(read: true) else notification,
-    ]);
-  }
+        if (!notification.read) notification.id,
+    ];
+    if (unreadIds.isEmpty) return;
 
-  void markAllAsRead() {
-    final current = state.value;
-    if (current == null) return;
-    state = AsyncData([for (final notification in current) notification.copyWith(read: true)]);
+    await ref
+        .read(notificationRepositoryProvider)
+        .markAllAsRead(uid: uid, notificationIds: unreadIds);
   }
 }
 
 final notificationsControllerProvider =
-    AsyncNotifierProvider<NotificationsController, List<AppNotification>>(
+    StreamNotifierProvider<NotificationsController, List<AppNotification>>(
       NotificationsController.new,
     );

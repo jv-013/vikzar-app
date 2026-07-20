@@ -7,8 +7,8 @@ import '../../../../design_system/components/vikzar_bottom_sheet.dart';
 import '../../../../design_system/components/vikzar_list_row.dart';
 import '../../../../design_system/tokens/spacing.dart';
 import '../../../../routing/app_router.dart';
-import '../../../../services/local_storage/onboarding_progress_store.dart';
 import '../../../../shared/models/workspace_type.dart';
+import '../../../../shared/providers/current_app_user_provider.dart';
 import '../../../auth/data/repositories/auth_repository_impl.dart';
 import 'workspace_switch_sheet.dart';
 
@@ -38,7 +38,7 @@ class ProfileSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final held = ref.watch(onboardingCompletionProvider);
+    final held = ref.watch(heldWorkspacesProvider);
     final isDual = held.length > 1;
 
     void closeSheetThen(void Function() action) {

@@ -8,6 +8,9 @@ import 'package:vikzar/features/workspace/presentation/controllers/active_worksp
 import 'package:vikzar/features/workspace/presentation/screens/workspace_selection_screen.dart';
 import 'package:vikzar/services/local_storage/shared_preferences_provider.dart';
 import 'package:vikzar/shared/models/workspace_type.dart';
+import 'package:vikzar/shared/providers/current_uid_provider.dart';
+
+const _uid = 'uid_123';
 
 void main() {
   group('WorkspaceSelectionScreen', () {
@@ -19,7 +22,10 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            currentUidProvider.overrideWithValue(_uid),
+          ],
           child: MaterialApp(
             theme: AppTheme.dark(),
             home: const WorkspaceSelectionScreen(),
@@ -43,7 +49,10 @@ void main() {
 
         await tester.pumpWidget(
           ProviderScope(
-            overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+            overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            currentUidProvider.overrideWithValue(_uid),
+          ],
             child: Consumer(
               builder: (context, ref, _) {
                 container = ProviderScope.containerOf(context);
@@ -71,7 +80,7 @@ void main() {
           container.read(activeWorkspaceProvider),
           WorkspaceType.player,
         );
-        expect(prefs.getString('active_workspace'), 'player');
+        expect(prefs.getString('active_workspace::$_uid'), 'player');
       },
     );
   });

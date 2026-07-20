@@ -13,24 +13,30 @@ import 'shared_preferences_provider.dart';
 /// `users/{uid}` — `workspaces`/`defaultWorkspace` (what the account
 /// *holds*) live in Firestore; *which one this device is currently
 /// looking at* lives only here.
+///
+/// Per DECISIONS.md ADR-052, every key is namespaced by the authenticated
+/// Firebase [uid] so signing out of one account and into another on the
+/// same device can never read the previous account's cached choice.
 class ActiveWorkspaceStore {
   ActiveWorkspaceStore(this._prefs);
 
   final SharedPreferences _prefs;
 
-  static const _key = 'active_workspace';
+  static const _keyPrefix = 'active_workspace';
 
-  WorkspaceType? read() {
-    final stored = _prefs.getString(_key);
+  String _keyFor(String uid) => '$_keyPrefix::$uid';
+
+  WorkspaceType? read(String uid) {
+    final stored = _prefs.getString(_keyFor(uid));
     return WorkspaceType.fromFirestoreKey(stored);
   }
 
-  Future<void> write(WorkspaceType type) => _prefs.setString(
-    _key,
+  Future<void> write(String uid, WorkspaceType type) => _prefs.setString(
+    _keyFor(uid),
     type.firestoreKey,
   );
 
-  Future<void> clear() => _prefs.remove(_key);
+  Future<void> clear(String uid) => _prefs.remove(_keyFor(uid));
 }
 
 final activeWorkspaceStoreProvider = Provider<ActiveWorkspaceStore>((ref) {

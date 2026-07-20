@@ -9,8 +9,8 @@ import 'package:vikzar/features/auth/data/repositories/auth_repository_impl.dart
 import 'package:vikzar/features/auth/domain/models/auth_state.dart';
 import 'package:vikzar/features/workspace/presentation/controllers/active_workspace_controller.dart';
 import 'package:vikzar/routing/route_guards.dart';
-import 'package:vikzar/services/local_storage/onboarding_progress_store.dart';
 import 'package:vikzar/shared/models/app_user.dart';
+import 'package:vikzar/shared/models/user_workspaces.dart';
 import 'package:vikzar/shared/models/workspace_type.dart';
 import 'package:vikzar/shared/repositories/user_repository_impl.dart';
 
@@ -33,20 +33,15 @@ class _FixedActiveWorkspaceNotifier extends ActiveWorkspaceNotifier {
   WorkspaceType? build() => _value;
 }
 
-class _FixedOnboardingCompletionNotifier extends OnboardingCompletionNotifier {
-  _FixedOnboardingCompletionNotifier(this._value);
-
-  final Set<WorkspaceType> _value;
-
-  @override
-  Set<WorkspaceType> build() => _value;
-}
-
+/// **Revised at Phase 8B** (DECISIONS.md ADR-051): onboarding completion
+/// now lives entirely in Firestore's `users/{uid}.workspaces`, read via
+/// [watchUserProvider] — every authenticated case now depends on it,
+/// unlike Phase 7's local `onboardingCompletionProvider`, so [user]
+/// defaults to "no document yet" rather than being optional.
 ProviderContainer _containerFor({
   required AsyncValue<AuthState> auth,
-  AsyncValue<Result<AppUser?>>? user,
+  AsyncValue<Result<AppUser?>> user = const AsyncData(Result.success(null)),
   WorkspaceType? activeWorkspace,
-  Set<WorkspaceType> completedOnboarding = const {},
 }) {
   final overrides = [
     authStateProvider.overrideWith((ref) => switch (auth) {
@@ -57,20 +52,12 @@ ProviderContainer _containerFor({
     activeWorkspaceProvider.overrideWith(
       () => _FixedActiveWorkspaceNotifier(activeWorkspace),
     ),
-    onboardingCompletionProvider.overrideWith(
-      () => _FixedOnboardingCompletionNotifier(completedOnboarding),
-    ),
+    watchUserProvider(_uid).overrideWith((ref) => switch (user) {
+      AsyncData(:final value) => Stream.value(value),
+      AsyncError(:final error) => Stream.error(error),
+      _ => const Stream.empty(),
+    }),
   ];
-
-  if (user != null) {
-    overrides.add(
-      watchUserProvider(_uid).overrideWith((ref) => switch (user) {
-        AsyncData(:final value) => Stream.value(value),
-        AsyncError(:final error) => Stream.error(error),
-        _ => const Stream.empty(),
-      }),
-    );
-  }
 
   return ProviderContainer(overrides: overrides);
 }
@@ -106,13 +93,15 @@ Future<void> _awaitUserSettled(ProviderContainer container) async {
   subscription.close();
 }
 
-/// Never called for "still loading" test cases, since an empty stream
-/// (this test suite's stand-in for "not resolved yet") never leaves the
-/// loading state.
+/// [awaitUser] defaults to `true` now (Phase 8B): every authenticated
+/// destination depends on `watchUserProvider`, not just the "no local
+/// pointer" fallback Phase 7 had. Never called for "still loading" test
+/// cases, since an empty stream (this test suite's stand-in for "not
+/// resolved yet") never leaves the loading state.
 Future<void> _settle(
   ProviderContainer container, {
   bool awaitAuth = true,
-  bool awaitUser = false,
+  bool awaitUser = true,
 }) async {
   if (awaitAuth) await _awaitAuthSettled(container);
   if (awaitUser) await _awaitUserSettled(container);
@@ -138,24 +127,36 @@ void main() {
     test('unauthenticated -> GoToAuth', () async {
       final container = _containerFor(auth: const AsyncData(Unauthenticated()));
       addTearDown(container.dispose);
-      await _settle(container);
+      await _settle(container, awaitUser: false);
 
       expect(container.read(routeDestinationProvider), isA<GoToAuth>());
     });
 
     test(
-      'authenticated with a local active-workspace pointer -> InOnboarding '
-      'for that workspace, regardless of Firestore profile state — the '
-      'Phase 5 regression this phase fixes (Workspace Selection could '
-      'never navigate forward because the old logic checked Firestore '
-      'workspaces before the local pointer, and Firestore workspaces is '
-      'always empty with no Cloud Functions)',
+      'authenticated, profile still loading -> StayOnSplash (Phase 8B: this '
+      'now applies even with a local active-workspace pointer, since '
+      'onboarding completion is read from Firestore, not a local flag)',
       () async {
         final container = _containerFor(
           auth: const AsyncData(Authenticated(uid: _uid)),
           activeWorkspace: WorkspaceType.player,
-          // No `user` override at all: watchUserProvider is never even
-          // watched once a local pointer exists, so this must not matter.
+          user: const AsyncLoading(),
+        );
+        addTearDown(container.dispose);
+        await _settle(container, awaitUser: false);
+
+        expect(container.read(routeDestinationProvider), isA<StayOnSplash>());
+      },
+    );
+
+    test(
+      'authenticated with a local active-workspace pointer, but Firestore '
+      "doesn't yet record that workspace as held -> InOnboarding for that "
+      'workspace',
+      () async {
+        final container = _containerFor(
+          auth: const AsyncData(Authenticated(uid: _uid)),
+          activeWorkspace: WorkspaceType.player,
         );
         addTearDown(container.dispose);
         await _settle(container);
@@ -167,15 +168,22 @@ void main() {
     );
 
     test(
-      'authenticated with a local active-workspace pointer already marked '
-      'complete -> InApp (the main application shell) — revised Phase 7: '
-      'this used to mean "stay on Onboarding Complete forever," it now '
-      'means "enter the app"',
+      'authenticated with a local active-workspace pointer that Firestore '
+      "records as held -> InApp (the main application shell)",
       () async {
         final container = _containerFor(
           auth: const AsyncData(Authenticated(uid: _uid)),
           activeWorkspace: WorkspaceType.coach,
-          completedOnboarding: {WorkspaceType.coach},
+          user: const AsyncData(
+            Result.success(
+              AppUser(
+                uid: _uid,
+                email: 'coach@vikzar.app',
+                workspaces: UserWorkspaces(coach: CoachWorkspace(teamIds: ['team_1'])),
+                defaultWorkspace: WorkspaceType.coach,
+              ),
+            ),
+          ),
         );
         addTearDown(container.dispose);
         await _settle(container);
@@ -183,21 +191,6 @@ void main() {
         final destination = container.read(routeDestinationProvider);
         expect(destination, isA<InApp>());
         expect((destination as InApp).workspace, WorkspaceType.coach);
-      },
-    );
-
-    test(
-      'authenticated, no local pointer, profile still loading -> '
-      'StayOnSplash',
-      () async {
-        final container = _containerFor(
-          auth: const AsyncData(Authenticated(uid: _uid)),
-          user: const AsyncLoading(),
-        );
-        addTearDown(container.dispose);
-        await _settle(container); // auth resolves; user stays loading
-
-        expect(container.read(routeDestinationProvider), isA<StayOnSplash>());
       },
     );
 
@@ -210,7 +203,7 @@ void main() {
           user: const AsyncData(Result.failure(UnknownFailure())),
         );
         addTearDown(container.dispose);
-        await _settle(container, awaitUser: true);
+        await _settle(container);
 
         expect(
           container.read(routeDestinationProvider),
@@ -230,7 +223,7 @@ void main() {
           ),
         );
         addTearDown(container.dispose);
-        await _settle(container, awaitUser: true);
+        await _settle(container);
 
         expect(
           container.read(routeDestinationProvider),
@@ -240,9 +233,9 @@ void main() {
     );
 
     test(
-      'authenticated, no local pointer, but Firestore has a defaultWorkspace '
-      '(a new device on an existing, already-onboarded account) -> '
-      'InOnboarding for that workspace',
+      'authenticated, no local pointer, Firestore has a defaultWorkspace '
+      'not yet held (a new device on an existing account still mid-'
+      'onboarding) -> InOnboarding for that workspace',
       () async {
         final container = _containerFor(
           auth: const AsyncData(Authenticated(uid: _uid)),
@@ -257,11 +250,38 @@ void main() {
           ),
         );
         addTearDown(container.dispose);
-        await _settle(container, awaitUser: true);
+        await _settle(container);
 
         final destination = container.read(routeDestinationProvider);
         expect(destination, isA<InOnboarding>());
         expect((destination as InOnboarding).workspace, WorkspaceType.player);
+      },
+    );
+
+    test(
+      'authenticated, no local pointer, Firestore has a defaultWorkspace '
+      'already held (a new device on an existing, fully-onboarded account) '
+      '-> InApp for that workspace',
+      () async {
+        final container = _containerFor(
+          auth: const AsyncData(Authenticated(uid: _uid)),
+          user: const AsyncData(
+            Result.success(
+              AppUser(
+                uid: _uid,
+                email: 'p@vikzar.app',
+                workspaces: UserWorkspaces(player: PlayerWorkspace()),
+                defaultWorkspace: WorkspaceType.player,
+              ),
+            ),
+          ),
+        );
+        addTearDown(container.dispose);
+        await _settle(container);
+
+        final destination = container.read(routeDestinationProvider);
+        expect(destination, isA<InApp>());
+        expect((destination as InApp).workspace, WorkspaceType.player);
       },
     );
   });

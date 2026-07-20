@@ -12,7 +12,7 @@ abstract final class FailureMessageMapper {
       AuthFailure(:final message) => _authMessage(message),
       PermissionFailure() =>
         "You don't have permission to do that right now.",
-      CloudFailure() => 'Something went wrong. Please try again.',
+      CloudFailure(:final message) => _cloudMessage(message),
       BleFailure() => 'A device connection issue occurred.',
       UnknownFailure() => 'Something went wrong. Please try again.',
     };
@@ -27,6 +27,14 @@ abstract final class FailureMessageMapper {
       'user-not-found' ||
       'invalid-credential' => "That code didn't work. Please try again.",
       _ => 'We couldn\'t sign you in. Please try again.',
+    };
+  }
+
+  static String _cloudMessage(String? code) {
+    return switch (code) {
+      'team-not-found' =>
+        "That team ID doesn't match a team. Check the code and try again.",
+      _ => 'Something went wrong. Please try again.',
     };
   }
 }

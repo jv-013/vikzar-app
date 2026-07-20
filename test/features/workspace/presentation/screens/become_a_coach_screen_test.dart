@@ -3,10 +3,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:vikzar/core/result/result.dart';
 import 'package:vikzar/design_system/theme/app_theme.dart';
+import 'package:vikzar/features/workspace/data/repositories/coach_request_repository_impl.dart';
+import 'package:vikzar/features/workspace/domain/models/coach_request.dart';
+import 'package:vikzar/features/workspace/domain/repositories/coach_request_repository.dart';
 import 'package:vikzar/features/workspace/presentation/screens/become_a_coach_complete_screen.dart';
 import 'package:vikzar/features/workspace/presentation/screens/become_a_coach_screen.dart';
 import 'package:vikzar/routing/app_router.dart';
+import 'package:vikzar/shared/models/app_user.dart';
+import 'package:vikzar/shared/providers/current_app_user_provider.dart';
+import 'package:vikzar/shared/providers/current_uid_provider.dart';
+
+const _uid = 'uid_123';
+
+/// Records the submitted request instead of touching real Firestore —
+/// Phase 8B (DECISIONS.md ADR-051) turned Submit into a real write.
+class _RecordingCoachRequestRepository implements CoachRequestRepository {
+  CoachRequest? submitted;
+
+  @override
+  Future<Result<void>> submit(CoachRequest request) async {
+    submitted = request;
+    return const Result.success(null);
+  }
+}
 
 void main() {
   group('BecomeACoachScreen', () {
@@ -39,8 +60,17 @@ void main() {
           ],
         );
 
+        final repository = _RecordingCoachRequestRepository();
+
         await tester.pumpWidget(
           ProviderScope(
+            overrides: [
+              currentUidProvider.overrideWithValue(_uid),
+              currentAppUserProvider.overrideWithValue(
+                const AppUser(uid: _uid, email: 'player@vikzar.app', displayName: 'Jordan Blake'),
+              ),
+              coachRequestRepositoryProvider.overrideWithValue(repository),
+            ],
             child: MaterialApp.router(theme: AppTheme.dark(), routerConfig: router),
           ),
         );
@@ -71,6 +101,9 @@ void main() {
           find.textContaining("We'll review it and notify you"),
           findsOneWidget,
         );
+        expect(repository.submitted, isNotNull);
+        expect(repository.submitted!.uid, _uid);
+        expect(repository.submitted!.club, 'Riverside Academy');
       },
     );
   });

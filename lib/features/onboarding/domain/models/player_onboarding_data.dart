@@ -1,75 +1,26 @@
 /// Player onboarding field options and in-memory collected data —
-/// DESIGN_SPECIFICATION.md §19.1, steps 2–5a. **Nothing here is persisted
-/// to Firestore this phase** (no Cloud Functions, per this phase's scope);
-/// it exists only for the lifetime of the onboarding flow, discarded on
-/// sign-out — see DECISIONS.md's Phase 6 onboarding-state ADR.
-enum PlayingLevel {
-  academy,
-  amateur,
-  semiProfessional,
-  professional;
+/// DESIGN_SPECIFICATION.md §19.1, steps 2–5a.
+///
+/// **Revised at Phase 8B:** the field-option enums used to be defined here
+/// and were purely in-memory (nothing persisted). They are now defined in
+/// `shared/models/player_profile.dart` — promoted once `AppUser.playerProfile`
+/// needed the same enums outside onboarding (Profile, Player Home) — and
+/// re-exported below so every existing import of this file keeps working
+/// unchanged. [PlayerProfileData] itself remains onboarding-flow-local
+/// scratch state; [toPlayerProfile] converts it to the shared, persisted
+/// shape once [isComplete].
+library;
 
-  String get label => switch (this) {
-    PlayingLevel.academy => 'Academy',
-    PlayingLevel.amateur => 'Amateur',
-    PlayingLevel.semiProfessional => 'Semi Professional',
-    PlayingLevel.professional => 'Professional',
-  };
-}
+import '../../../../shared/models/player_profile.dart';
 
-enum PreferredFoot {
-  left,
-  right,
-  both;
-
-  String get label => switch (this) {
-    PreferredFoot.left => 'Left',
-    PreferredFoot.right => 'Right',
-    PreferredFoot.both => 'Both',
-  };
-}
-
-enum PlayingPosition {
-  goalkeeper,
-  defender,
-  midfielder,
-  forward;
-
-  String get label => switch (this) {
-    PlayingPosition.goalkeeper => 'Goalkeeper',
-    PlayingPosition.defender => 'Defender',
-    PlayingPosition.midfielder => 'Midfielder',
-    PlayingPosition.forward => 'Forward',
-  };
-}
-
-enum InjuryHistoryStatus {
-  never,
-  previously,
-  currentlyRecovering;
-
-  String get label => switch (this) {
-    InjuryHistoryStatus.never => 'Never',
-    InjuryHistoryStatus.previously => 'Previously',
-    InjuryHistoryStatus.currentlyRecovering => 'Currently Recovering',
-  };
-}
-
-enum InjuryType {
-  acl,
-  meniscus,
-  hamstring,
-  ankle,
-  other;
-
-  String get label => switch (this) {
-    InjuryType.acl => 'ACL',
-    InjuryType.meniscus => 'Meniscus',
-    InjuryType.hamstring => 'Hamstring',
-    InjuryType.ankle => 'Ankle',
-    InjuryType.other => 'Other',
-  };
-}
+export '../../../../shared/models/player_profile.dart'
+    show
+        PlayingLevel,
+        PreferredFoot,
+        PlayingPosition,
+        InjuryHistoryStatus,
+        InjuryType,
+        PlayerProfile;
 
 class PlayerProfileData {
   const PlayerProfileData({
@@ -150,4 +101,18 @@ class PlayerOnboardingData {
       permissions: permissions ?? this.permissions,
     );
   }
+
+  /// Converts the collected onboarding data into the shape persisted at
+  /// `users/{uid}.playerProfile` (BACKEND_SPECIFICATION.md §1.5, Added
+  /// Phase 8B). Callers should only do this once [profile.isComplete].
+  PlayerProfile toPlayerProfile() => PlayerProfile(
+    level: level,
+    age: profile.age,
+    heightCm: profile.height,
+    weightKg: profile.weight,
+    preferredFoot: profile.preferredFoot,
+    position: profile.position,
+    injuryStatus: profile.injuryStatus,
+    injuryTypes: profile.injuryTypes,
+  );
 }

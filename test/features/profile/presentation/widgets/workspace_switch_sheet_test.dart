@@ -8,6 +8,10 @@ import 'package:vikzar/features/profile/presentation/widgets/workspace_switch_sh
 import 'package:vikzar/features/workspace/presentation/controllers/active_workspace_controller.dart';
 import 'package:vikzar/services/local_storage/shared_preferences_provider.dart';
 import 'package:vikzar/shared/models/workspace_type.dart';
+import 'package:vikzar/shared/providers/current_app_user_provider.dart';
+import 'package:vikzar/shared/providers/current_uid_provider.dart';
+
+const _uid = 'uid_123';
 
 void main() {
   group('WorkspaceSwitchSheet', () {
@@ -16,17 +20,20 @@ void main() {
       'the active workspace locally, instantly — no logout, no loading '
       'screen',
       (tester) async {
-        SharedPreferences.setMockInitialValues({
-          'onboarding_complete_player': true,
-          'onboarding_complete_coach': true,
-          'active_workspace': 'player',
-        });
+        SharedPreferences.setMockInitialValues({'active_workspace::$_uid': 'player'});
         final prefs = await SharedPreferences.getInstance();
         late final ProviderContainer container;
 
         await tester.pumpWidget(
           ProviderScope(
-            overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+            overrides: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              currentUidProvider.overrideWithValue(_uid),
+              heldWorkspacesProvider.overrideWithValue(const [
+                WorkspaceType.player,
+                WorkspaceType.coach,
+              ]),
+            ],
             child: Consumer(
               builder: (context, ref, _) {
                 container = ProviderScope.containerOf(context);
@@ -48,7 +55,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(container.read(activeWorkspaceProvider), WorkspaceType.coach);
-        expect(prefs.getString('active_workspace'), 'coach');
+        expect(prefs.getString('active_workspace::$_uid'), 'coach');
       },
     );
   });

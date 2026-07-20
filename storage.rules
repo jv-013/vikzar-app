@@ -1,0 +1,38 @@
+rules_version = '2';
+
+// Vikzar Cloud Storage Security Rules — generated at Phase 8B to match
+// BACKEND_SPECIFICATION.md §16 (Cloud Storage Folder Hierarchy). The only
+// client-writable path is a user's own avatar folder; every session
+// raw/report path is Cloud-Function-only (no client, and no Cloud
+// Functions, write to it yet).
+//
+// NOT DEPLOYED — created only, per Phase 8B's explicit instruction.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // /users/{uid}/avatar/{fileName} — BACKEND_SPECIFICATION.md §16.
+    match /users/{uid}/avatar/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // /organizations/{orgId}/teams/{teamId}/players/{playerId}/sessions/{sessionId}/raw|reports/{fileName}
+    // — Cloud-Function-only writes, per §16/§17. No client feature reads
+    // this path yet (no session pipeline this phase), so read is scoped
+    // to the player themselves only, conservatively — a coach read path
+    // (via a Firestore `teams/{teamId}.coachIds` lookup) can be added
+    // once a real coach-facing session/report download flow exists.
+    match /organizations/{orgId}/teams/{teamId}/players/{playerId}/sessions/{sessionId}/{subpath=**} {
+      allow read: if request.auth != null && request.auth.uid == playerId;
+      allow write: if false;
+    }
+
+    // Deny everything else by default.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
