@@ -29,9 +29,9 @@ void main() {
 
       expect(find.text('Academy'), findsOneWidget);
       expect(find.text('Club'), findsOneWidget);
-      expect(find.text('Professional'), findsOneWidget);
+      expect(find.text('Pro'), findsOneWidget);
       // Player-only label must never leak into the Coach level screen.
-      expect(find.text('Semi Professional'), findsNothing);
+      expect(find.text('Semi-Pro'), findsNothing);
 
       await tester.tap(find.text('Club'));
       await tester.pumpAndSettle();

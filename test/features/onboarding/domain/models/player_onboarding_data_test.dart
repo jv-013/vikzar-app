@@ -9,7 +9,7 @@ void main() {
       expect(profile.isComplete, isFalse);
     });
 
-    test('true once every required field is set, injury status included', () {
+    test('true once every required field is set, training status included', () {
       const profile = PlayerProfileData(
         name: 'Jai',
         age: 21,
@@ -17,7 +17,7 @@ void main() {
         weight: 75,
         preferredFoot: PreferredFoot.right,
         position: PlayingPosition.midfielder,
-        injuryStatus: InjuryHistoryStatus.never,
+        trainingStatus: TrainingStatus.fullyAvailable,
       );
       expect(profile.isComplete, isTrue);
     });
@@ -30,7 +30,7 @@ void main() {
         weight: 75,
         preferredFoot: PreferredFoot.right,
         position: PlayingPosition.midfielder,
-        injuryStatus: InjuryHistoryStatus.never,
+        trainingStatus: TrainingStatus.fullyAvailable,
       );
       expect(profile.isComplete, isFalse);
     });

@@ -28,7 +28,7 @@ void main() {
       );
 
       expect(find.text('Academy'), findsOneWidget);
-      expect(find.text('Professional'), findsOneWidget);
+      expect(find.text('Pro'), findsOneWidget);
 
       var continueButton = tester.widget<TextButton>(
         find.widgetWithText(TextButton, 'Continue'),

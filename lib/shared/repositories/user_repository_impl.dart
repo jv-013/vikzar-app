@@ -94,7 +94,7 @@ class UserRepositoryImpl implements UserRepository {
           'uid': uid,
           'email': email,
           'displayName': displayName,
-          'workspaces.${workspace.firestoreKey}': workspaceMap,
+          'workspaces': {workspace.firestoreKey: workspaceMap},
           profileField: profileMap,
           'status': existing?['status'] as String? ?? 'active',
           'updatedAt': now,
@@ -159,8 +159,15 @@ final userRepositoryProvider = Provider<UserRepository>((ref) {
 
 /// Watches one `users/{uid}` document. Family-scoped since the uid is only
 /// known once authenticated — consumed by `routing/route_guards.dart`'s
-/// `routeDestinationProvider`.
-final watchUserProvider = StreamProvider.family<Result<AppUser?>, String>((
+/// `routeDestinationProvider`. **`autoDispose`** (edge-case audit,
+/// platform-lock pass): without it, every distinct uid ever watched (e.g.
+/// every roster member a coach's Team screen has shown) keeps its
+/// Firestore listener open for the app's entire lifetime, even after
+/// nothing is displaying it — unbounded listener/memory growth and
+/// wasted reads at scale. `currentAppUserProvider`'s continuous watch
+/// keeps the signed-in user's own entry alive exactly as long as
+/// something needs it, same as before.
+final watchUserProvider = StreamProvider.autoDispose.family<Result<AppUser?>, String>((
   ref,
   uid,
 ) {

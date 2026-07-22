@@ -174,7 +174,9 @@ This structure resolves an ambiguity the previous flat `teamIds` array had: an a
 
 **Onboarding completion signal, Phase 8B:** there is no separate `onboardingStatus` field. Presence of `workspaces.player` / `workspaces.coach` *is* the "onboarding complete for this workspace" signal — the key is written once, atomically, at the end of that workspace's onboarding flow (never before), so its presence and onboarding completion are definitionally the same fact. A second field tracking the same thing would only invite drift between the two.
 
-`playerProfile` map fields (**Added Phase 8B**, collected during Player onboarding; the map is written once as a whole at onboarding completion, mirroring the `.name` of each Dart enum exactly, per the same convention as `WorkspaceType.firestoreKey`): `level` (string enum: `academy`, `amateur`, `semiProfessional`, `professional`), `age` (number), `heightCm` (number, from `PlayerProfileData.height`), `weightKg` (number, from `.weight`), `preferredFoot` (string enum: `left`, `right`, `both`), `position` (string enum: `goalkeeper`, `defender`, `midfielder`, `forward`), `injuryStatus` (string enum: `never`, `previously`, `currentlyRecovering`), `injuryTypes` (array&lt;string&gt;, enum values `acl`/`meniscus`/`hamstring`/`ankle`/`other`, present when `injuryStatus != "never"`).
+`playerProfile` map fields (**Added Phase 8B**, collected during Player onboarding; the map is written once as a whole at onboarding completion, mirroring the `.name` of each Dart enum exactly, per the same convention as `WorkspaceType.firestoreKey`): `level` (string enum: `academy`, `amateur`, `semiProfessional`, `professional`), `age` (number), `heightCm` (number, from `PlayerProfileData.height`), `weightKg` (number, from `.weight`), `preferredFoot` (string enum: `left`, `right`, `both`), `position` (string enum: `goalkeeper`, `defender`, `midfielder`, `forward`), `trainingStatus` (string enum: `fullyAvailable`, `individualTraining`, `returnToPlay`, `unavailable` — **revised at Phase 9, DECISIONS.md ADR-059**, superseding Phase 8D's 3-value set; still collected at onboarding, still non-medical).
+
+`playerProfile.injuryTypes`/`playerProfile.recoveryTimeframe` (**Added Phase 9, DECISIONS.md ADR-060** — reintroducing detail ADR-057 removed, but structurally different: Profile-edit-only, never onboarding, and shown in the UI only when `trainingStatus` is not `fullyAvailable`): `injuryTypes` (array&lt;string enum&gt;, present only when non-empty: `acl`, `meniscus`, `hamstring`, `ankle`, `groin`, `calf`, `hip`, `quadriceps`, `other`), `recoveryTimeframe` (string enum, present only when set: `underTwoWeeks`, `twoToFourWeeks`, `oneToTwoMonths`, `twoToThreeMonths`, `threeMonthsOrMore`). Written via `UserRepository.updatePlayerProfile` (Edit Profile sheet), the same client-direct, self-scoped write path as every other `playerProfile` field (ADR-051).
 
 `coachProfile` map fields (**Added Phase 8B**, collected during Coach onboarding): `level` (string enum: `academy`, `club`, `professional`), `age` (number), `title` (string, e.g. `"Head Coach"`), `club` (string, e.g. academy/club name).
 
@@ -432,6 +434,8 @@ A device (`devices/{deviceId}`) has two independent ownership axes, both optiona
 
 A device with neither field set is an unassigned, pool-provisioned device, visible to administrative tooling only (out of scope of this document). Telemetry fields (`lastSeenAt`, `lastKnownBattery`, `status` transitions triggered by the heartbeat monitor) are Cloud-Function-written only, per §0's trust boundary — a coach can *assign* a device but cannot fabricate its connection state.
 
+**Universal Pod clarification (added Phase 9, DECISIONS.md ADR-065):** the Vikzar Smart Pod is one universal sensor unit that can be physically mounted in a shinguard, a compression sleeve, or compression shorts depending on what the player is wearing that session. `type` (`smart_pod`/`emg_band`) plus `ownerId` already fully describe "this Pod belongs to this player" — the physical mounting location is a real-world fact no Flutter screen shows or needs, and no field is added for it. Verified, not changed.
+
 ---
 
 ## 8. Live Session Data Model
@@ -572,6 +576,8 @@ Storage Security Rules mirror the Firestore access model in §15: a path under `
 
 Extends [ARCHITECTURE.md §12](ARCHITECTURE.md#12-cloud-functions-responsibilities)'s four general categories with the concrete functions this backend requires. Every function below is either (a) an HTTPS Callable function invoked by the laptop's ingestion principal, (b) a Firestore-triggered function reacting to a write, or (c) a scheduled function.
 
+**Implemented, not deployed (Platform Lock pass, DECISIONS.md ADR-067):** every function in the table below now exists as real code in `functions/` (Node.js/TypeScript, Firebase Functions v2), with its own passing test suite. Deploying to the live project requires the project owner's Firebase CLI access, the same category of action as [ADR-050](DECISIONS.md#adr-050-production-firebase-connection-requires-the-project-owners-own-credentials--cannot-be-completed-by-an-agent) — not done as part of this pass.
+
 | Function | Trigger | Responsibility |
 |---|---|---|
 | `startSession` | Callable (laptop) | Validates the ingestion principal's scope; creates `sessions/{sessionId}` with `status: "live"`. |
@@ -669,6 +675,7 @@ Two distinct timestamp concepts are used throughout, and must not be conflated:
 
 **Required fields:** `sessionId`, `playerId`, `sequenceNumber`, `tickTimestamp`, `connectionStatus`, `metrics.currentLoad`, `metrics.cumulativeImpacts`, `metrics.riskScore`, `metrics.riskLevel`.
 **Optional fields:** `teamId`, `metrics.emgActivation` (present only if an EMG Thigh Band is active for this session), `deviceBattery`.
+**Additive optional fields (added Platform Lock pass, DECISIONS.md ADR-066):** `metrics.confidence`, `metrics.fatigueScore`/`.fatigueLevel`, `metrics.workloadRatio`/`.workloadStatus`, `metrics.asymmetryScore`/`.asymmetryStatus`, `metrics.muscleBalanceScore`/`.muscleBalanceStatus` — carries the laptop Risk Engine's real sub-score breakdown, which is richer than this contract originally captured. Never required; the Cloud Function accepts a payload without any of them exactly as before.
 
 ```json
 {
@@ -723,6 +730,7 @@ Two distinct timestamp concepts are used throughout, and must not be conflated:
 
 **Required fields:** `sessionId`, `playerId`, `severity`, `type`, `message`, `triggeredAt`.
 **Optional fields:** `teamId`, `metricsSnapshot`.
+**Additive optional fields (added Platform Lock pass, DECISIONS.md ADR-066):** `contributingFactors` (array of `{component, score, weight, contribution}`), `recommendations` (array of `{code, priority, message}`), `confidence`, `policyVersion`, `modelVersion`, `assessmentId`, `assessmentChecksum` — carries the laptop Risk Engine's full explanation/provenance output. Never required.
 
 ```json
 {

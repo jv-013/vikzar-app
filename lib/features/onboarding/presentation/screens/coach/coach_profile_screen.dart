@@ -10,8 +10,7 @@ import '../../../domain/models/coach_onboarding_data.dart';
 import '../../controllers/coach_onboarding_controller.dart';
 import '../../widgets/onboarding_step_scaffold.dart';
 
-/// Step 3 (Coach) — DESIGN_SPECIFICATION.md §19.1: Name, Age, Coaching
-/// Title/Role, Club/Organization.
+/// Step 3 (Coach) — DESIGN_SPECIFICATION.md §19.1: Name, Age, Role, Club.
 class CoachProfileScreen extends ConsumerStatefulWidget {
   const CoachProfileScreen({super.key});
 
@@ -79,13 +78,13 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
           ),
           const SizedBox(height: SpacingTokens.space16),
           VikzarTextField(
-            label: 'Coaching Title/Role',
+            label: 'Role',
             controller: _titleController,
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: SpacingTokens.space16),
           VikzarTextField(
-            label: 'Club/Organization (optional)',
+            label: 'Club (optional)',
             controller: _clubController,
           ),
         ],

@@ -10,10 +10,13 @@ enum CoachingLevel {
   club,
   professional;
 
+  /// Football-club-natural label (DECISIONS.md ADR — football terminology
+  /// pass): "Pro", matching `PlayingLevel`'s same change. `.name` is
+  /// unchanged.
   String get label => switch (this) {
     CoachingLevel.academy => 'Academy',
     CoachingLevel.club => 'Club',
-    CoachingLevel.professional => 'Professional',
+    CoachingLevel.professional => 'Pro',
   };
 
   static CoachingLevel? fromName(String? name) {

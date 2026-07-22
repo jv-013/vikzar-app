@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/alerts/presentation/screens/alerts_screen.dart';
 import '../features/auth/presentation/screens/auth_screen.dart';
 import '../features/coach_home/presentation/screens/coach_home_screen.dart';
 import '../features/notifications/presentation/screens/notification_center_screen.dart';
@@ -17,6 +18,9 @@ import '../features/onboarding/presentation/screens/splash_screen.dart';
 import '../features/player_home/presentation/screens/player_home_screen.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/screens/settings_screen.dart';
+import '../features/sessions/presentation/screens/player_activity_screen.dart';
+import '../features/team/presentation/screens/player_detail_screen.dart';
+import '../features/team/presentation/screens/team_screen.dart';
 import '../features/workspace/presentation/screens/become_a_coach_complete_screen.dart';
 import '../features/workspace/presentation/screens/become_a_coach_screen.dart';
 import '../features/workspace/presentation/screens/workspace_selection_screen.dart';
@@ -148,7 +152,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoute.playerTimelinePath,
                 name: 'player-timeline',
-                builder: (context, state) => const ComingSoonScreen(title: 'Timeline'),
+                builder: (context, state) => const PlayerActivityScreen(),
               ),
             ],
           ),
@@ -201,7 +205,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoute.coachTeamPath,
                 name: 'coach-team',
-                builder: (context, state) => const ComingSoonScreen(title: 'Team'),
+                builder: (context, state) => const TeamScreen(),
               ),
             ],
           ),
@@ -210,7 +214,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoute.coachAlertsPath,
                 name: 'coach-alerts',
-                builder: (context, state) => const ComingSoonScreen(title: 'Alerts'),
+                builder: (context, state) => const AlertsScreen(),
               ),
             ],
           ),
@@ -255,6 +259,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.becomeCoachCompletePath,
         name: 'become-a-coach-complete',
         builder: (context, state) => const BecomeACoachCompleteScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.coachTeamPlayerPathPattern,
+        name: 'coach-team-player-detail',
+        builder: (context, state) =>
+            PlayerDetailScreen(uid: state.pathParameters['uid']!),
       ),
     ],
   );
@@ -354,4 +364,10 @@ abstract final class AppRoute {
 
   static const String becomeCoachPath = '/player/become-a-coach';
   static const String becomeCoachCompletePath = '/player/become-a-coach/complete';
+
+  /// Player Detail, pushed from the Team screen rather than a shell
+  /// branch — the exact pattern FLUTTER_ARCHITECTURE.md §4 anticipates.
+  static const String coachTeamPlayerPathPattern = '/coach/team/player/:uid';
+
+  static String coachTeamPlayerPath(String uid) => '/coach/team/player/$uid';
 }

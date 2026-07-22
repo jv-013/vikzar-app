@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../../design_system/tokens/spacing.dart';
+import '../../../../shared/widgets/notification_timeline_card.dart' show relativeTime;
 import '../../../../shared/widgets/section_empty_state.dart';
 import '../../domain/models/app_notification.dart';
 import '../controllers/notifications_controller.dart';
@@ -117,7 +118,7 @@ class _NotificationRow extends StatelessWidget {
                   ),
                   const SizedBox(height: SpacingTokens.space4),
                   Text(
-                    _relativeTime(notification.timestamp),
+                    relativeTime(notification.timestamp),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -130,11 +131,4 @@ class _NotificationRow extends StatelessWidget {
       ),
     );
   }
-}
-
-String _relativeTime(DateTime timestamp) {
-  final difference = DateTime.now().difference(timestamp);
-  if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
-  if (difference.inHours < 24) return '${difference.inHours}h ago';
-  return '${difference.inDays}d ago';
 }

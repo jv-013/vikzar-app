@@ -7,6 +7,7 @@ import '../../../../core/result/result.dart';
 import '../../../../design_system/components/vikzar_bottom_sheet.dart';
 import '../../../../design_system/components/vikzar_button.dart';
 import '../../../../design_system/components/vikzar_chip_group.dart';
+import '../../../../design_system/components/vikzar_expandable_section.dart';
 import '../../../../design_system/components/vikzar_segmented_control.dart';
 import '../../../../design_system/components/vikzar_text_field.dart';
 import '../../../../design_system/tokens/spacing.dart';
@@ -47,8 +48,14 @@ class _EditPlayerProfileForm extends ConsumerStatefulWidget {
 class _EditPlayerProfileFormState extends ConsumerState<_EditPlayerProfileForm> {
   late final TextEditingController _nameController;
   late final TextEditingController _ageController;
+  late final TextEditingController _heightController;
+  late final TextEditingController _weightController;
   PreferredFoot? _foot;
   PlayingPosition? _position;
+  PlayingLevel? _level;
+  TrainingStatus? _trainingStatus;
+  Set<InjuryType> _injuryTypes = {};
+  RecoveryTimeframe? _recoveryTimeframe;
   bool _isSaving = false;
   Failure? _failure;
 
@@ -61,16 +68,31 @@ class _EditPlayerProfileFormState extends ConsumerState<_EditPlayerProfileForm> 
     _current = user?.playerProfile ?? const PlayerProfile();
     _nameController = TextEditingController(text: user?.displayName ?? '');
     _ageController = TextEditingController(text: _current.age?.toString() ?? '');
+    _heightController = TextEditingController(
+      text: _current.heightCm?.toStringAsFixed(0) ?? '',
+    );
+    _weightController = TextEditingController(
+      text: _current.weightKg?.toStringAsFixed(0) ?? '',
+    );
     _foot = _current.preferredFoot;
     _position = _current.position;
+    _level = _current.level;
+    _trainingStatus = _current.trainingStatus;
+    _injuryTypes = _current.injuryTypes;
+    _recoveryTimeframe = _current.recoveryTimeframe;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _ageController.dispose();
+    _heightController.dispose();
+    _weightController.dispose();
     super.dispose();
   }
+
+  bool get _showInjuryDetail =>
+      _trainingStatus != null && _trainingStatus != TrainingStatus.fullyAvailable;
 
   Future<void> _save() async {
     final uid = ref.read(currentUidProvider);
@@ -94,14 +116,21 @@ class _EditPlayerProfileFormState extends ConsumerState<_EditPlayerProfileForm> 
     final profileResult = await repository.updatePlayerProfile(
       uid: uid,
       profile: PlayerProfile(
-        level: _current.level,
+        level: _level,
         age: int.tryParse(_ageController.text.trim()),
-        heightCm: _current.heightCm,
-        weightKg: _current.weightKg,
+        heightCm: double.tryParse(_heightController.text.trim()),
+        weightKg: double.tryParse(_weightController.text.trim()),
         preferredFoot: _foot,
         position: _position,
-        injuryStatus: _current.injuryStatus,
-        injuryTypes: _current.injuryTypes,
+        trainingStatus: _trainingStatus,
+        // Injury detail is only ever meaningful — and only ever shown for
+        // editing — once Training Status is something other than "Fully
+        // Available" (DECISIONS.md ADR-060). Clearing Training Status back
+        // to Fully Available clears any previously-set injury detail too,
+        // rather than leaving stale values behind that the UI no longer
+        // shows a path to edit.
+        injuryTypes: _showInjuryDetail ? _injuryTypes : const {},
+        recoveryTimeframe: _showInjuryDetail ? _recoveryTimeframe : null,
       ),
     );
     if (profileResult.isFailure) {
@@ -152,6 +181,37 @@ class _EditPlayerProfileFormState extends ConsumerState<_EditPlayerProfileForm> 
               keyboardType: TextInputType.number,
               enabled: !_isSaving,
             ),
+            const SizedBox(height: SpacingTokens.space16),
+            Row(
+              children: [
+                Expanded(
+                  child: VikzarTextField(
+                    label: 'Height (cm)',
+                    controller: _heightController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    enabled: !_isSaving,
+                  ),
+                ),
+                const SizedBox(width: SpacingTokens.space16),
+                Expanded(
+                  child: VikzarTextField(
+                    label: 'Weight (kg)',
+                    controller: _weightController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    enabled: !_isSaving,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: SpacingTokens.space20),
+            Text('Level', style: theme.textTheme.titleSmall),
+            const SizedBox(height: SpacingTokens.space8),
+            VikzarSegmentedControl<PlayingLevel>(
+              options: PlayingLevel.values,
+              labelBuilder: (level) => level.label,
+              selected: _level,
+              onChanged: (value) => setState(() => _level = value),
+            ),
             const SizedBox(height: SpacingTokens.space20),
             Text('Preferred Foot', style: theme.textTheme.titleSmall),
             const SizedBox(height: SpacingTokens.space8),
@@ -171,6 +231,47 @@ class _EditPlayerProfileFormState extends ConsumerState<_EditPlayerProfileForm> 
               multiSelect: false,
               onChanged: (selection) => setState(
                 () => _position = selection.isEmpty ? null : selection.first,
+              ),
+            ),
+            const SizedBox(height: SpacingTokens.space20),
+            Text('Training Status', style: theme.textTheme.titleSmall),
+            const SizedBox(height: SpacingTokens.space8),
+            VikzarSegmentedControl<TrainingStatus>(
+              options: TrainingStatus.values,
+              labelBuilder: (status) => status.label,
+              selected: _trainingStatus,
+              onChanged: (value) => setState(() => _trainingStatus = value),
+            ),
+            VikzarExpandableSection(
+              expanded: _showInjuryDetail,
+              child: Padding(
+                padding: const EdgeInsets.only(top: SpacingTokens.space20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Injury Type', style: theme.textTheme.titleSmall),
+                    const SizedBox(height: SpacingTokens.space8),
+                    VikzarChipGroup<InjuryType>(
+                      options: InjuryType.values,
+                      labelBuilder: (type) => type.label,
+                      selected: _injuryTypes,
+                      onChanged: (selection) => setState(() => _injuryTypes = selection),
+                    ),
+                    const SizedBox(height: SpacingTokens.space20),
+                    Text('Expected Recovery', style: theme.textTheme.titleSmall),
+                    const SizedBox(height: SpacingTokens.space8),
+                    VikzarChipGroup<RecoveryTimeframe>(
+                      options: RecoveryTimeframe.values,
+                      labelBuilder: (timeframe) => timeframe.label,
+                      selected: {?_recoveryTimeframe},
+                      multiSelect: false,
+                      onChanged: (selection) => setState(
+                        () => _recoveryTimeframe =
+                            selection.isEmpty ? null : selection.first,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             if (_failure != null) ...[
@@ -307,13 +408,13 @@ class _EditCoachProfileFormState extends ConsumerState<_EditCoachProfileForm> {
             ),
             const SizedBox(height: SpacingTokens.space16),
             VikzarTextField(
-              label: 'Coaching Title/Role',
+              label: 'Role',
               controller: _titleController,
               enabled: !_isSaving,
             ),
             const SizedBox(height: SpacingTokens.space16),
             VikzarTextField(
-              label: 'Club/Organization',
+              label: 'Club',
               controller: _clubController,
               enabled: !_isSaving,
             ),

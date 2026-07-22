@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../design_system/components/vikzar_chip_group.dart';
-import '../../../../../design_system/components/vikzar_expandable_section.dart';
 import '../../../../../design_system/components/vikzar_segmented_control.dart';
 import '../../../../../design_system/components/vikzar_text_field.dart';
 import '../../../../../design_system/tokens/spacing.dart';
@@ -14,8 +13,13 @@ import '../../controllers/player_onboarding_controller.dart';
 import '../../widgets/onboarding_step_scaffold.dart';
 
 /// Step 3 (Player) — DESIGN_SPECIFICATION.md §19.1. One vertically-stacked
-/// form; Injury History expands inline on this same screen, never a new
-/// page.
+/// form.
+///
+/// **Revised at Phase 8D (DECISIONS.md ADR-057):** the former "Injury
+/// History" question (a clinical-intake-style segment control that expanded
+/// into an ACL/Meniscus/Hamstring/Ankle/Other picker) is replaced by
+/// "Training Status" — a single, non-medical three-option segment control
+/// with no follow-up question.
 class PlayerProfileScreen extends ConsumerStatefulWidget {
   const PlayerProfileScreen({super.key});
 
@@ -30,8 +34,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   late final TextEditingController _weightController;
   PreferredFoot? _foot;
   PlayingPosition? _position;
-  InjuryHistoryStatus? _injuryStatus;
-  Set<InjuryType> _injuryTypes = {};
+  TrainingStatus? _trainingStatus;
 
   /// Inline validation only becomes visible once the user has tried to
   /// continue with the form incomplete — showing every required field as
@@ -53,8 +56,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     );
     _foot = existing.preferredFoot;
     _position = existing.position;
-    _injuryStatus = existing.injuryStatus;
-    _injuryTypes = existing.injuryTypes;
+    _trainingStatus = existing.trainingStatus;
   }
 
   @override
@@ -73,8 +75,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     weight: double.tryParse(_weightController.text.trim()),
     preferredFoot: _foot,
     position: _position,
-    injuryStatus: _injuryStatus,
-    injuryTypes: _injuryTypes,
+    trainingStatus: _trainingStatus,
   );
 
   void _continue() {
@@ -179,29 +180,15 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
           ),
           ?_selectionError(context, showErrors && _position == null),
           const SizedBox(height: SpacingTokens.space24),
-          Text('Injury History', style: theme.textTheme.titleSmall),
+          Text('Training Status', style: theme.textTheme.titleSmall),
           const SizedBox(height: SpacingTokens.space8),
-          VikzarSegmentedControl<InjuryHistoryStatus>(
-            options: InjuryHistoryStatus.values,
+          VikzarSegmentedControl<TrainingStatus>(
+            options: TrainingStatus.values,
             labelBuilder: (status) => status.label,
-            selected: _injuryStatus,
-            onChanged: (value) => setState(() {
-              _injuryStatus = value;
-              if (value != InjuryHistoryStatus.previously) {
-                _injuryTypes = {};
-              }
-            }),
+            selected: _trainingStatus,
+            onChanged: (value) => setState(() => _trainingStatus = value),
           ),
-          ?_selectionError(context, showErrors && _injuryStatus == null),
-          VikzarExpandableSection(
-            expanded: _injuryStatus == InjuryHistoryStatus.previously,
-            child: VikzarChipGroup<InjuryType>(
-              options: InjuryType.values,
-              labelBuilder: (type) => type.label,
-              selected: _injuryTypes,
-              onChanged: (selection) => setState(() => _injuryTypes = selection),
-            ),
-          ),
+          ?_selectionError(context, showErrors && _trainingStatus == null),
         ],
       ),
     );

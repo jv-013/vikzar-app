@@ -18,8 +18,7 @@ export '../../../../shared/models/player_profile.dart'
         PlayingLevel,
         PreferredFoot,
         PlayingPosition,
-        InjuryHistoryStatus,
-        InjuryType,
+        TrainingStatus,
         PlayerProfile;
 
 class PlayerProfileData {
@@ -30,8 +29,7 @@ class PlayerProfileData {
     this.weight,
     this.preferredFoot,
     this.position,
-    this.injuryStatus,
-    this.injuryTypes = const {},
+    this.trainingStatus,
   });
 
   final String name;
@@ -40,8 +38,7 @@ class PlayerProfileData {
   final double? weight;
   final PreferredFoot? preferredFoot;
   final PlayingPosition? position;
-  final InjuryHistoryStatus? injuryStatus;
-  final Set<InjuryType> injuryTypes;
+  final TrainingStatus? trainingStatus;
 
   bool get isComplete =>
       name.trim().isNotEmpty &&
@@ -50,7 +47,7 @@ class PlayerProfileData {
       weight != null &&
       preferredFoot != null &&
       position != null &&
-      injuryStatus != null;
+      trainingStatus != null;
 }
 
 class PlayerPermissions {
@@ -112,7 +109,6 @@ class PlayerOnboardingData {
     weightKg: profile.weight,
     preferredFoot: profile.preferredFoot,
     position: profile.position,
-    injuryStatus: profile.injuryStatus,
-    injuryTypes: profile.injuryTypes,
+    trainingStatus: profile.trainingStatus,
   );
 }

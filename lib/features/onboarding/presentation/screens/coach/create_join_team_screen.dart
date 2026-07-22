@@ -15,9 +15,11 @@ import '../../widgets/onboarding_step_scaffold.dart';
 
 /// Step 5b (Coach) — DESIGN_SPECIFICATION.md §19.1. Two options as large
 /// selectable Cards, each opening an inline field — never a new screen.
-/// **UI only this phase**: no Cloud Function is called (Firestore/Cloud
-/// Functions are out of scope), so nothing is actually created or joined —
-/// see DECISIONS.md's Phase 6 onboarding-state ADR.
+/// This screen itself only collects [TeamSetupData] into
+/// [CoachOnboardingController] — the actual `TeamRepository.createTeam`/
+/// `joinTeamAsCoach` Firestore write happens later, when
+/// `OnboardingCompletionController.complete` runs at "Get Started"
+/// (`onboarding_completion_controller.dart`), not here.
 class CreateJoinTeamScreen extends ConsumerStatefulWidget {
   const CreateJoinTeamScreen({super.key});
 

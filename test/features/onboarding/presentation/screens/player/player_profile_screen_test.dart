@@ -11,53 +11,9 @@ import 'package:vikzar/shared/models/workspace_type.dart';
 void main() {
   group('PlayerProfileScreen', () {
     testWidgets(
-      'Injury History detail chips only appear after selecting '
-      '"Previously" — never a new screen, DESIGN_SPECIFICATION.md §19.1',
-      (tester) async {
-        // The full form is taller than the default 800x600 test surface —
-        // enlarge it so every field is actually hit-testable, rather than
-        // scrolling to each one individually.
-        tester.view.physicalSize = const Size(800, 2000);
-        tester.view.devicePixelRatio = 1;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-
-        final router = GoRouter(
-          initialLocation: '/profile',
-          routes: [
-            GoRoute(
-              path: '/profile',
-              builder: (context, state) => const PlayerProfileScreen(),
-            ),
-          ],
-        );
-
-        await tester.pumpWidget(
-          ProviderScope(
-            child: MaterialApp.router(theme: AppTheme.dark(), routerConfig: router),
-          ),
-        );
-
-        expect(find.text('ACL'), findsNothing);
-
-        await tester.tap(find.text('Previously'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('ACL'), findsOneWidget);
-        expect(find.text('Meniscus'), findsOneWidget);
-
-        await tester.tap(find.text('Never'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('ACL'), findsNothing);
-      },
-    );
-
-    testWidgets(
-      'Continue is always tappable; tapping while incomplete reveals '
-      'inline "Required" errors instead of a snackbar/dialog and does not '
-      'advance — filling every required field then lets it through '
-      '(DECISIONS.md ADR-056)',
+      'Continue is always tappable; tapping while incomplete reveals inline "Required" errors instead '
+      'of a snackbar/dialog and does not advance — filling every required field then lets it through '
+      '(DECISIONS.md ADR-056), including the non-medical Training Status question (DECISIONS.md ADR-057)',
       (tester) async {
         tester.view.physicalSize = const Size(800, 2000);
         tester.view.devicePixelRatio = 1;
@@ -107,7 +63,7 @@ void main() {
         await tester.enterText(find.widgetWithText(TextField, 'Weight (kg)'), '75');
         await tester.tap(find.text('Right'));
         await tester.tap(find.text('Midfielder'));
-        await tester.tap(find.text('Never'));
+        await tester.tap(find.text('Fully Available'));
         await tester.pumpAndSettle();
 
         expect(find.text('Required'), findsNothing);
@@ -116,6 +72,43 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Permissions'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Training Status offers exactly the four non-medical options and never shows medical/injury '
+      'terminology during onboarding (DECISIONS.md ADR-057, ADR-059, ADR-060)',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 2000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final router = GoRouter(
+          initialLocation: '/profile',
+          routes: [
+            GoRoute(
+              path: '/profile',
+              builder: (context, state) => const PlayerProfileScreen(),
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp.router(theme: AppTheme.dark(), routerConfig: router),
+          ),
+        );
+
+        expect(find.text('Training Status'), findsOneWidget);
+        expect(find.text('Fully Available'), findsOneWidget);
+        expect(find.text('Individual Training'), findsOneWidget);
+        expect(find.text('Return to Play'), findsOneWidget);
+        expect(find.text('Unavailable'), findsOneWidget);
+
+        expect(find.text('Injury History'), findsNothing);
+        expect(find.text('ACL'), findsNothing);
+        expect(find.text('Meniscus'), findsNothing);
       },
     );
   });
