@@ -4,6 +4,8 @@ import { db } from "../lib/admin";
 
 /** How long a device may go silent during a live session before it's considered disconnected. */
 const HEARTBEAT_TIMEOUT_MS = 60_000;
+/** Firestore's own hard limit on operations per batch — 2 writes/flagged device. */
+const MAX_BATCH_OPS = 500;
 
 /**
  * BACKEND_SPECIFICATION.md §17 — "Checks `devices.lastSeenAt` for devices
@@ -20,31 +22,46 @@ export const deviceHeartbeatMonitor = onSchedule("every 30 seconds", async () =>
   if (liveSessions.empty) return;
 
   const now = Date.now();
-  const alertBatch = db().batch();
-  let alertsRaised = 0;
 
-  for (const sessionDoc of liveSessions.docs) {
+  // Confirmed by audit: with sessions × devices read sequentially (one
+  // `await` per device, one at a time), 50 concurrent live sessions ×
+  // 4 devices = 200 fully sequential round trips — several seconds of
+  // wall-clock time against a function that fires every 30 seconds,
+  // and pure latency this function's own logic doesn't need to pay,
+  // since every device read is independent. Reading `Promise.all`-style
+  // instead collapses that to one round-trip's worth of latency
+  // regardless of device count.
+  const checks = liveSessions.docs.flatMap((sessionDoc) => {
     const session = sessionDoc.data();
     const deviceIds = (session["deviceIds"] as string[] | undefined) ?? [];
-    if (deviceIds.length === 0) continue;
+    return deviceIds.map((deviceId) => ({ sessionDoc, session, deviceId }));
+  });
 
-    for (const deviceId of deviceIds) {
-      const deviceRef = db().collection("devices").doc(deviceId);
-      const deviceSnap = await deviceRef.get();
-      if (!deviceSnap.exists) continue;
-      const lastSeenAt = deviceSnap.data()?.["lastSeenAt"] as Timestamp | undefined;
-      if (lastSeenAt == null) continue; // never reported yet — not this monitor's concern
-      if (now - lastSeenAt.toMillis() <= HEARTBEAT_TIMEOUT_MS) continue;
-      if (deviceSnap.data()?.["connectivityStatus"] === "disconnected") continue; // already flagged
+  const deviceSnaps = await Promise.all(
+    checks.map(({ deviceId }) => db().collection("devices").doc(deviceId).get())
+  );
 
-      alertBatch.set(
-        deviceRef,
-        { connectivityStatus: "disconnected", updatedAt: Timestamp.now() },
-        { merge: true }
-      );
+  type PendingWrite = { ref: FirebaseFirestore.DocumentReference; data: Record<string, unknown>; merge?: boolean };
+  const writes: PendingWrite[] = [];
 
-      const alertRef = db().collection("alerts").doc();
-      alertBatch.set(alertRef, {
+  checks.forEach(({ sessionDoc, session, deviceId }, index) => {
+    const deviceSnap = deviceSnaps[index]!;
+    if (!deviceSnap.exists) return;
+    const lastSeenAt = deviceSnap.data()?.["lastSeenAt"] as Timestamp | undefined;
+    if (lastSeenAt == null) return; // never reported yet — not this monitor's concern
+    if (now - lastSeenAt.toMillis() <= HEARTBEAT_TIMEOUT_MS) return;
+    if (deviceSnap.data()?.["connectivityStatus"] === "disconnected") return; // already flagged
+
+    writes.push({
+      ref: db().collection("devices").doc(deviceId),
+      data: { connectivityStatus: "disconnected", updatedAt: Timestamp.now() },
+      merge: true,
+    });
+
+    const alertRef = db().collection("alerts").doc();
+    writes.push({
+      ref: alertRef,
+      data: {
         alertId: alertRef.id,
         sessionId: sessionDoc.id,
         playerId: session["playerId"],
@@ -60,10 +77,19 @@ export const deviceHeartbeatMonitor = onSchedule("every 30 seconds", async () =>
         triggeredAt: Timestamp.now(),
         acknowledged: false,
         createdAt: Timestamp.now(),
-      });
-      alertsRaised += 1;
-    }
-  }
+      },
+    });
+  });
 
-  if (alertsRaised > 0) await alertBatch.commit();
+  // Chunked, same reasoning as lib/notifications.ts's writeNotifications —
+  // a single WriteBatch throws past 500 operations, which a mass-disconnect
+  // event across enough concurrent live sessions could reach (2 writes per
+  // flagged device).
+  for (let start = 0; start < writes.length; start += MAX_BATCH_OPS) {
+    const batch = db().batch();
+    for (const write of writes.slice(start, start + MAX_BATCH_OPS)) {
+      batch.set(write.ref, write.data, write.merge ? { merge: true } : {});
+    }
+    await batch.commit();
+  }
 });

@@ -41,16 +41,17 @@ export const onAlertCreated = onDocumentCreated("alerts/{alertId}", async (event
     relatedAlertId: alertId,
   };
 
-  if (severity === "critical" || severity === "warning") {
+  const bySeverity = severity === "critical" || severity === "warning";
+  const byType = type === "device_disconnected";
+
+  if (bySeverity) {
     recipients.set(playerId, { uid: playerId, ...notification });
-    if (teamId != null) {
-      for (const uid of await coachUidsForTeam(teamId)) {
-        recipients.set(uid, { uid, ...notification });
-      }
-    }
   }
 
-  if (type === "device_disconnected" && teamId != null) {
+  // Read once, not once per matching rule — both rules resolve the same
+  // team's coaches, and a team's coach list doesn't change between the
+  // two checks within a single invocation.
+  if ((bySeverity || byType) && teamId != null) {
     for (const uid of await coachUidsForTeam(teamId)) {
       recipients.set(uid, { uid, ...notification });
     }

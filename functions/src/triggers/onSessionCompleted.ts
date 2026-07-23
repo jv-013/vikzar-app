@@ -46,11 +46,19 @@ async function updateCareerStats(playerId: string, session: Record<string, unkno
   const endedAt = session["endedAt"] as Timestamp | undefined;
 
   const thirtyDaysAgo = Timestamp.fromMillis(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  // Defensive cap, not a real-world limit: this query re-scans the
+  // player's own last-30-days terminal sessions on every single
+  // completion, so its cost is O(k) on a player's k-th completion in
+  // the window — bounded in practice by realistic training frequency
+  // (nobody trains 60+ times in 30 days), but a runaway/buggy ingestion
+  // client generating many sessions could otherwise scale this
+  // unboundedly. 60 comfortably covers 2x/day for 30 days.
   const recentSessions = await db()
     .collection("sessions")
     .where("playerId", "==", playerId)
     .where("status", "in", Array.from(TERMINAL_STATUSES))
     .where("endedAt", ">=", thirtyDaysAgo)
+    .limit(60)
     .get();
   const riskScores = recentSessions.docs
     .map((doc) => (doc.data()["summaryMetrics"] as Record<string, unknown> | undefined)?.["overallRiskScore"])

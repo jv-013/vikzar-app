@@ -49,7 +49,10 @@ class NotificationsController extends StreamNotifier<List<AppNotification>> {
   }
 }
 
+// `.autoDispose` — matches every other Firestore-backed provider in this
+// codebase (DECISIONS.md ADR-068); this one was found missing it during
+// a later production-readiness pass.
 final notificationsControllerProvider =
-    StreamNotifierProvider<NotificationsController, List<AppNotification>>(
+    StreamNotifierProvider.autoDispose<NotificationsController, List<AppNotification>>(
       NotificationsController.new,
     );
