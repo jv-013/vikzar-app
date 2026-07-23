@@ -20,11 +20,15 @@ const _playerNavItems = [
   _NavItem(icon: Symbols.person, label: 'Profile'),
 ];
 
+// Phase 13 §2/§5 — remapped from 5 tabs (Home/Live/Team/Alerts/Profile)
+// to the requested 4 (Dashboard/Players/Sessions/Profile). Live is
+// dropped entirely (it was 100% placeholder, nothing real to preserve).
+// Alerts' real screen/controller/repository are kept, reachable from a
+// Dashboard card instead of a standalone tab, not deleted.
 const _coachNavItems = [
-  _NavItem(icon: Symbols.home, label: 'Home'),
-  _NavItem(icon: Symbols.sensors, label: 'Live'),
-  _NavItem(icon: Symbols.groups, label: 'Team'),
-  _NavItem(icon: Symbols.notifications, label: 'Alerts'),
+  _NavItem(icon: Symbols.dashboard, label: 'Dashboard'),
+  _NavItem(icon: Symbols.groups, label: 'Players'),
+  _NavItem(icon: Symbols.event, label: 'Sessions'),
   _NavItem(icon: Symbols.person, label: 'Profile'),
 ];
 

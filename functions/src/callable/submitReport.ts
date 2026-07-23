@@ -1,4 +1,4 @@
-import { onCall } from "firebase-functions/v2/https";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../lib/admin";
 import { requireIngestionPrincipal, requireTeamInScope } from "../lib/ingestionAuth";
@@ -13,18 +13,37 @@ import { parseSubmitReportPayload } from "../contracts/types";
  * `"draft"` (§1.11) is reserved for a future report-generation path this
  * function does not implement. `onReportCreated`
  * (triggers/onReportCreated.ts) reacts to the resulting document creation.
+ *
+ * Phase 13 §7 fix: `teamId` is now derived from the referenced session's
+ * stored document, not trusted from the payload — same fix and same
+ * reasoning as `ingestLiveTick`.
  */
 export const submitReport = onCall(async (request) => {
   const claims = requireIngestionPrincipal(request);
   const payload = parseSubmitReportPayload(request.data);
-  requireTeamInScope(claims, payload.teamId ?? null);
+
+  const sessionSnap = await db().collection("sessions").doc(payload.sessionId).get();
+  if (!sessionSnap.exists) {
+    throw new HttpsError(
+      "failed-precondition",
+      `sessions/${payload.sessionId} does not exist.`
+    );
+  }
+  const sessionTeamId = sessionSnap.data()?.["teamId"] as string | undefined;
+  requireTeamInScope(claims, sessionTeamId ?? null);
+  if (payload.teamId != null && payload.teamId !== sessionTeamId) {
+    throw new HttpsError(
+      "invalid-argument",
+      `"teamId" does not match sessions/${payload.sessionId}'s recorded team.`
+    );
+  }
 
   const ref = db().collection("reports").doc();
   await ref.set({
     reportId: ref.id,
     type: "session_report",
     playerId: payload.playerId,
-    ...(payload.teamId != null ? { teamId: payload.teamId } : {}),
+    ...(sessionTeamId != null ? { teamId: sessionTeamId } : {}),
     ...(claims.orgId != null ? { orgId: claims.orgId } : {}),
     sessionId: payload.sessionId,
     generatedAt: Timestamp.fromDate(payload.generatedAt),

@@ -26,8 +26,8 @@ Future<void> _pump(WidgetTester tester) async {
 void main() {
   group('CoachHomeScreen', () {
     testWidgets(
-      'renders the exact Phase 9 section list, with honest placeholders — '
-      'never a fabricated squad count or alert',
+      'renders the exact Phase 13 Dashboard section list, with honest '
+      'placeholders — never a fabricated squad count, session, or alert',
       (tester) async {
         await _pump(tester);
 
@@ -38,12 +38,15 @@ void main() {
         expect(find.text('Unavailable'), findsOneWidget);
         // No team yet (no `workspaces.coach` in this test's user) — every
         // squad count is an honest dash, never a fabricated number.
-        expect(find.text('—'), findsNWidgets(4));
+        expect(find.text('—'), findsWidgets);
 
-        expect(find.text('Players Requiring Attention'), findsOneWidget);
-        expect(find.text('Nothing to flag right now.'), findsOneWidget);
-        expect(find.text("Today's Training"), findsOneWidget);
-        expect(find.text('No training scheduled today.'), findsOneWidget);
+        expect(find.text("Today's Sessions"), findsOneWidget);
+        expect(find.text('No team yet.'), findsOneWidget);
+        expect(find.text('Active Alerts'), findsOneWidget);
+        expect(find.text('Connected Pods'), findsOneWidget);
+        expect(find.text('No Pods connected.'), findsOneWidget);
+        expect(find.text('Recent Reports'), findsOneWidget);
+        expect(find.text('No reports yet.'), findsOneWidget);
         expect(find.text('Recent Team Activity'), findsOneWidget);
         expect(find.text('No activity yet.'), findsOneWidget);
 
@@ -53,12 +56,15 @@ void main() {
         expect(find.text('View Team'), findsOneWidget);
         expect(find.text('Notifications'), findsOneWidget);
 
-        // Player-only vocabulary and Phase 7's superseded sections must
-        // never leak into Coach Home.
+        // Player-only vocabulary, Phase 7's superseded sections, and
+        // Phase 13's removed placeholder sections must never leak into
+        // the Coach Dashboard.
         expect(find.text('Roster'), findsNothing);
         expect(find.text('Recent Alerts'), findsNothing);
         expect(find.text('Team Actions'), findsNothing);
         expect(find.text('Join Team'), findsNothing);
+        expect(find.text('Players Requiring Attention'), findsNothing);
+        expect(find.text("Today's Training"), findsNothing);
       },
     );
 

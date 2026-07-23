@@ -12,24 +12,25 @@ import '../../../../shared/providers/current_app_user_provider.dart';
 import '../../../../shared/widgets/fade_scale_in.dart';
 import '../../../../shared/widgets/notification_timeline_card.dart';
 import '../../../../shared/widgets/section_empty_state.dart';
+import '../../../alerts/presentation/controllers/alerts_controller.dart';
 import '../../../notifications/presentation/controllers/notifications_controller.dart';
+import '../../../sessions/domain/models/planned_session.dart';
+import '../../../sessions/presentation/controllers/planned_sessions_controller.dart';
 import '../../../team/presentation/controllers/team_roster_controller.dart';
 import '../controllers/squad_summary_controller.dart';
 
-/// Coach Home — DESIGN_SPECIFICATION.md §19.3, **rebuilt at Phase 9** to
-/// the product's exact section list: Greeting, Today's Squad, Players
-/// Requiring Attention, Today's Training, Recent Team Activity, Quick
-/// Actions. Deliberately a different rhythm from Player Home — team-level,
-/// not a personal instrument panel.
+/// Coach Dashboard — DESIGN_SPECIFICATION.md §19.3, **rebuilt at Phase 9**,
+/// **remapped at Phase 13** (§5) to: Greeting, Today's Squad (Connected
+/// Players), Today's Sessions, Active Alerts, Connected Pods, Recent
+/// Reports, Recent Team Activity, Quick Actions. Deliberately a different
+/// rhythm from Player Home — team-level, not a personal instrument panel.
 ///
-/// Today's Squad is the one section with a genuinely real, aggregated
-/// signal: each roster member's own `trainingStatus`, combined by
-/// [squadSummaryProvider] — never a fabricated count. Players Requiring
-/// Attention and Today's Training remain honest placeholders — no AI
-/// pipeline or scheduling collection exists yet. Recent Team Activity is
-/// backed by the coach's own real notification stream, the same pattern
-/// Player Activity uses (a coach cannot read a specific other player's
-/// notifications — Security Rules scope that subcollection to self-only).
+/// Today's Squad, Today's Sessions, Active Alerts, and Recent Team
+/// Activity are all genuinely real, aggregated signals — never a
+/// fabricated count. Connected Pods and Recent Reports remain honest
+/// placeholders: no device-telemetry aggregation view or reports pipeline
+/// exists yet (the same "schema ready, no UI to bind to nothing" reasoning
+/// Phase 11's battery-architecture pass used).
 class CoachHomeScreen extends ConsumerWidget {
   const CoachHomeScreen({super.key});
 
@@ -65,20 +66,25 @@ class CoachHomeScreen extends ConsumerWidget {
               const SizedBox(height: SpacingTokens.space24),
               _TodaysSquadCard(teamId: teamId),
               const SizedBox(height: SpacingTokens.space32),
-              Text('Players Requiring Attention', style: theme.textTheme.titleLarge),
+              Text("Today's Sessions", style: theme.textTheme.titleLarge),
+              const SizedBox(height: SpacingTokens.space8),
+              _TodaysSessionsSection(teamId: teamId),
+              const SizedBox(height: SpacingTokens.space32),
+              const _ActiveAlertsCard(),
+              const SizedBox(height: SpacingTokens.space32),
+              Text('Connected Pods', style: theme.textTheme.titleLarge),
               const SizedBox(height: SpacingTokens.space8),
               const SectionEmptyState(
-                icon: Symbols.priority_high,
-                headline: 'Nothing to flag right now.',
-                body: 'Players needing attention will surface here once enough '
-                    'training data has been collected.',
+                icon: Symbols.sensors,
+                headline: 'No Pods connected.',
+                body: 'Connected devices will appear here once hardware is paired.',
               ),
               const SizedBox(height: SpacingTokens.space32),
-              Text("Today's Training", style: theme.textTheme.titleLarge),
+              Text('Recent Reports', style: theme.textTheme.titleLarge),
               const SizedBox(height: SpacingTokens.space8),
               const SectionEmptyState(
-                icon: Symbols.event_available,
-                headline: 'No training scheduled today.',
+                icon: Symbols.description,
+                headline: 'No reports yet.',
               ),
               const SizedBox(height: SpacingTokens.space32),
               Row(
@@ -218,6 +224,117 @@ class _SquadCount extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
       ],
+    );
+  }
+}
+
+class _TodaysSessionsSection extends ConsumerWidget {
+  const _TodaysSessionsSection({required this.teamId});
+
+  final String? teamId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (teamId == null) {
+      return const SectionEmptyState(
+        icon: Symbols.event_busy,
+        headline: 'No team yet.',
+      );
+    }
+    final sessionsAsync = ref.watch(upcomingPlannedSessionsProvider(teamId!));
+    return sessionsAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (result) => result.fold(
+        onSuccess: (sessions) {
+          final today = DateTime.now();
+          final todaysSessions = sessions
+              .where(
+                (s) =>
+                    s.scheduledAt.year == today.year &&
+                    s.scheduledAt.month == today.month &&
+                    s.scheduledAt.day == today.day,
+              )
+              .toList();
+          if (todaysSessions.isEmpty) {
+            return const SectionEmptyState(
+              icon: Symbols.event_available,
+              headline: 'No sessions scheduled today.',
+            );
+          }
+          return Column(
+            children: [
+              for (final session in todaysSessions) ...[
+                _TodaySessionRow(session: session),
+                const SizedBox(height: SpacingTokens.space8),
+              ],
+            ],
+          );
+        },
+        onFailure: (_) => const SizedBox.shrink(),
+      ),
+    );
+  }
+}
+
+class _TodaySessionRow extends StatelessWidget {
+  const _TodaySessionRow({required this.session});
+
+  final PlannedSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(
+          session.type == PlannedSessionType.match
+              ? Symbols.sports_soccer
+              : Symbols.fitness_center,
+          size: 18,
+          color: theme.colorScheme.secondary,
+        ),
+        const SizedBox(width: SpacingTokens.space8),
+        Expanded(child: Text(session.title, style: theme.textTheme.bodyMedium)),
+      ],
+    );
+  }
+}
+
+class _ActiveAlertsCard extends ConsumerWidget {
+  const _ActiveAlertsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final alertsAsync = ref.watch(alertsControllerProvider);
+    final unacknowledgedCount = alertsAsync.value?.fold(
+      onSuccess: (alerts) => alerts.where((a) => !a.acknowledged).length,
+      onFailure: (_) => 0,
+    );
+
+    return InkWell(
+      onTap: () => context.push(AppRoute.coachAlertsPath),
+      borderRadius: RadiusTokens.mediumRadius,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('Active Alerts', style: theme.textTheme.titleLarge),
+          Row(
+            children: [
+              Text(
+                unacknowledgedCount == null ? '—' : '$unacknowledgedCount',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: unacknowledgedCount != null && unacknowledgedCount > 0
+                      ? theme.colorScheme.error
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              Icon(Symbols.chevron_right, color: theme.colorScheme.onSurfaceVariant),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

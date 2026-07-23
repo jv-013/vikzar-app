@@ -34,6 +34,9 @@ abstract final class FailureMessageMapper {
     return switch (code) {
       'team-not-found' =>
         "That team ID doesn't match a team. Check the code and try again.",
+      // Phase 13 §10 — createPlannedSession's rate limit.
+      'resource-exhausted' =>
+        "You're doing that a bit too quickly. Please wait a moment and try again.",
       _ => 'Something went wrong. Please try again.',
     };
   }

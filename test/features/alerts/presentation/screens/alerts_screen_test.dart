@@ -2,11 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:vikzar/core/errors/failure.dart';
 import 'package:vikzar/core/result/result.dart';
 import 'package:vikzar/design_system/theme/app_theme.dart';
+import 'package:vikzar/features/alerts/data/repositories/alert_repository_impl.dart';
 import 'package:vikzar/features/alerts/domain/models/alert.dart';
+import 'package:vikzar/features/alerts/domain/repositories/alert_repository.dart';
 import 'package:vikzar/features/alerts/presentation/controllers/alerts_controller.dart';
 import 'package:vikzar/features/alerts/presentation/screens/alerts_screen.dart';
+import 'package:vikzar/shared/providers/current_uid_provider.dart';
+
+/// Phase 13 §16 — a fake so the acknowledge-failure path (previously
+/// silently swallowed by an unawaited Future) can actually be exercised
+/// without touching real Firestore.
+class _FakeAlertRepository implements AlertRepository {
+  _FakeAlertRepository({this.acknowledgeResult = const Result.success(null)});
+
+  final Result<void> acknowledgeResult;
+  String? lastAcknowledgedAlertId;
+
+  @override
+  Stream<Result<List<Alert>>> watchAlerts(List<String> teamIds) => const Stream.empty();
+
+  @override
+  Future<Result<void>> acknowledgeAlert({
+    required String alertId,
+    required String coachUid,
+  }) async {
+    lastAcknowledgedAlertId = alertId;
+    return acknowledgeResult;
+  }
+}
 
 Alert _alert(
   String id, {
@@ -27,13 +53,20 @@ Alert _alert(
   );
 }
 
-Future<void> _pump(WidgetTester tester, List<Alert> alerts) async {
+Future<void> _pump(
+  WidgetTester tester,
+  List<Alert> alerts, {
+  AlertRepository? repository,
+  String? coachUid,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         alertsControllerProvider.overrideWith(
           (ref) => Stream.value(Result.success(alerts)),
         ),
+        if (repository != null) alertRepositoryProvider.overrideWithValue(repository),
+        if (coachUid != null) currentUidProvider.overrideWithValue(coachUid),
       ],
       child: MaterialApp(theme: AppTheme.dark(), home: const AlertsScreen()),
     ),
@@ -89,5 +122,54 @@ void main() {
       expect(find.text('Acknowledge alert'), findsOneWidget);
       expect(find.widgetWithText(TextButton, 'Acknowledge'), findsOneWidget);
     });
+
+    testWidgets(
+      'confirming Acknowledge awaits the real result and closes the dialog '
+      'only on success (Phase 13 §16 fix — previously fired-and-forgot)',
+      (tester) async {
+        final fakeRepository = _FakeAlertRepository();
+        await _pump(
+          tester,
+          [_alert('a1', message: 'Needs review.')],
+          repository: fakeRepository,
+          coachUid: 'coach-1',
+        );
+
+        await tester.tap(find.text('Needs review.'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(TextButton, 'Acknowledge'));
+        await tester.pumpAndSettle();
+
+        expect(fakeRepository.lastAcknowledgedAlertId, 'a1');
+        expect(find.text('Acknowledge alert'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'a failed acknowledge surfaces a calm SnackBar instead of silently '
+      'succeeding (Phase 13 §16 fix)',
+      (tester) async {
+        final fakeRepository = _FakeAlertRepository(
+          acknowledgeResult: const Result.failure(NetworkFailure()),
+        );
+        await _pump(
+          tester,
+          [_alert('a1', message: 'Needs review.')],
+          repository: fakeRepository,
+          coachUid: 'coach-1',
+        );
+
+        await tester.tap(find.text('Needs review.'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(TextButton, 'Acknowledge'));
+        await tester.pumpAndSettle();
+
+        expect(fakeRepository.lastAcknowledgedAlertId, 'a1');
+        expect(
+          find.text("You're offline. Please check your connection and try again."),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }

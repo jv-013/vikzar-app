@@ -1,0 +1,225 @@
+{
+  "status": "success",
+  "result": [
+    {
+      "platform": "gcfv2",
+      "id": "completeSession",
+      "project": "vikzar-prod",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "completeSession",
+      "runtime": "nodejs20",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-295770188338-us-central1",
+          "object": "completeSession/function-source.zip",
+          "generation": "1784744846122020"
+        }
+      },
+      "uri": "https://us-central1-vikzar-prod.cloudfunctions.net/completeSession",
+      "codebase": "default",
+      "hash": "e327fd6912671ce2d890ef8d302544022f591a6e",
+      "state": "UNKNOWN"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "deviceHeartbeatMonitor",
+      "project": "vikzar-prod",
+      "region": "us-central1",
+      "scheduleTrigger": {},
+      "entryPoint": "deviceHeartbeatMonitor",
+      "runtime": "nodejs20",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-295770188338-us-central1",
+          "object": "deviceHeartbeatMonitor/function-source.zip",
+          "generation": "1784744847157254"
+        }
+      },
+      "uri": "https://us-central1-vikzar-prod.cloudfunctions.net/deviceHeartbeatMonitor",
+      "codebase": "default",
+      "hash": "e327fd6912671ce2d890ef8d302544022f591a6e",
+      "state": "UNKNOWN"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "fanOutLiveMonitoring",
+      "project": "vikzar-prod",
+      "region": "us-central1",
+      "httpsTrigger": {},
+      "entryPoint": "fanOutLiveMonitoring",
+      "runtime": "nodejs20",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-295770188338-us-central1",
+          "object": "fanOutLiveMonitoring/function-source.zip",
+          "generation": "1784775344950817"
+        }
+      },
+      "uri": "https://us-central1-vikzar-prod.cloudfunctions.net/fanOutLiveMonitoring",
+      "codebase": "default",
+      "hash": "e327fd6912671ce2d890ef8d302544022f591a6e",
+      "state": "FAILED"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "ingestLiveTick",
+      "project": "vikzar-prod",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "ingestLiveTick",
+      "runtime": "nodejs20",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-295770188338-us-central1",
+          "object": "ingestLiveTick/function-source.zip",
+          "generation": "1784744846272291"
+        }
+      },
+      "uri": "https://us-central1-vikzar-prod.cloudfunctions.net/ingestLiveTick",
+      "codebase": "default",
+      "hash": "e327fd6912671ce2d890ef8d302544022f591a6e",
+      "state": "UNKNOWN"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "onAlertCreated",
+      "project": "vikzar-prod",
+      "region": "us-central1",
+      "httpsTrigger": {},
+      "entryPoint": "onAlertCreated",
+      "runtime": "nodejs20",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-295770188338-us-central1",
+          "object": "onAlertCreated/function-source.zip",
+          "generation": "1784775382692795"
+        }
+      },
+      "uri": "https://us-central1-vikzar-prod.cloudfunctions.net/onAlertCreated",
+      "codebase": "default",
+      "hash": "e327fd6912671ce2d890ef8d302544022f591a6e",
+      "state": "FAILED"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "onReportCreated",
+      "project": "vikzar-prod",
+      "region": "us-central1",
+      "httpsTrigger": {},
+      "entryPoint": "onReportCreated",
+      "runtime": "nodejs20",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-295770188338-us-central1",
+          "object": "onReportCreated/function-source.zip",
+          "generation": "1784775382668643"
+        }
+      },
+      "uri": "https://us-central1-vikzar-prod.cloudfunctions.net/onReportCreated",
+      "codebase": "default",
+      "hash": "e327fd6912671ce2d890ef8d302544022f591a6e",
+      "state": "FAILED"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "onSessionCompleted",
+      "project": "vikzar-prod",
+      "region": "us-central1",
+      "httpsTrigger": {},
+      "entryPoint": "onSessionCompleted",
+      "runtime": "nodejs20",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-295770188338-us-central1",
+          "object": "onSessionCompleted/function-source.zip",
+          "generation": "1784775382645837"
+        }
+      },
+      "uri": "https://us-central1-vikzar-prod.cloudfunctions.net/onSessionCompleted",
+      "codebase": "default",
+      "hash": "e327fd6912671ce2d890ef8d302544022f591a6e",
+      "state": "FAILED"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "startSession",
+      "project": "vikzar-prod",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "startSession",
+      "runtime": "nodejs20",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-295770188338-us-central1",
+          "object": "startSession/function-source.zip",
+          "generation": "1784744798661975"
+        }
+      },
+      "uri": "https://us-central1-vikzar-prod.cloudfunctions.net/startSession",
+      "codebase": "default",
+      "hash": "e327fd6912671ce2d890ef8d302544022f591a6e",
+      "state": "UNKNOWN"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "submitAlert",
+      "project": "vikzar-prod",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "submitAlert",
+      "runtime": "nodejs20",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-295770188338-us-central1",
+          "object": "submitAlert/function-source.zip",
+          "generation": "1784744847115626"
+        }
+      },
+      "uri": "https://us-central1-vikzar-prod.cloudfunctions.net/submitAlert",
+      "codebase": "default",
+      "hash": "e327fd6912671ce2d890ef8d302544022f591a6e",
+      "state": "UNKNOWN"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "submitReport",
+      "project": "vikzar-prod",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "submitReport",
+      "runtime": "nodejs20",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-295770188338-us-central1",
+          "object": "submitReport/function-source.zip",
+          "generation": "1784744847121358"
+        }
+      },
+      "uri": "https://us-central1-vikzar-prod.cloudfunctions.net/submitReport",
+      "codebase": "default",
+      "hash": "e327fd6912671ce2d890ef8d302544022f591a6e",
+      "state": "UNKNOWN"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "weeklySummaryAggregator",
+      "project": "vikzar-prod",
+      "region": "us-central1",
+      "scheduleTrigger": {},
+      "entryPoint": "weeklySummaryAggregator",
+      "runtime": "nodejs20",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-295770188338-us-central1",
+          "object": "weeklySummaryAggregator/function-source.zip",
+          "generation": "1784744847145806"
+        }
+      },
+      "uri": "https://us-central1-vikzar-prod.cloudfunctions.net/weeklySummaryAggregator",
+      "codebase": "default",
+      "hash": "e327fd6912671ce2d890ef8d302544022f591a6e",
+      "state": "UNKNOWN"
+    }
+  ]
+}

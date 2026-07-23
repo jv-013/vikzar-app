@@ -67,33 +67,35 @@ void main() {
       expect(find.text('screen:/player/home'), findsNothing);
     });
 
-    testWidgets('Coach workspace shows exactly the 5 spec bottom-nav items', (
-      tester,
-    ) async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final router = _shellRouterFor(WorkspaceType.coach, [
-        '/coach/home',
-        '/coach/live',
-        '/coach/team',
-        '/coach/alerts',
-        '/coach/profile',
-      ]);
+    testWidgets(
+      'Coach workspace shows exactly the 4 Phase 13 spec bottom-nav items '
+      '(Dashboard/Players/Sessions/Profile) — Live and Alerts are no longer tabs',
+      (tester) async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final router = _shellRouterFor(WorkspaceType.coach, [
+          '/coach/home',
+          '/coach/team',
+          '/coach/sessions',
+          '/coach/profile',
+        ]);
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-          child: MaterialApp.router(theme: AppTheme.dark(), routerConfig: router),
-        ),
-      );
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+            child: MaterialApp.router(theme: AppTheme.dark(), routerConfig: router),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Live'), findsOneWidget);
-      expect(find.text('Team'), findsOneWidget);
-      expect(find.text('Alerts'), findsOneWidget);
-      expect(find.text('Profile'), findsOneWidget);
-      expect(find.text('Timeline'), findsNothing);
-    });
+        expect(find.text('Dashboard'), findsOneWidget);
+        expect(find.text('Players'), findsOneWidget);
+        expect(find.text('Sessions'), findsOneWidget);
+        expect(find.text('Profile'), findsOneWidget);
+        expect(find.text('Live'), findsNothing);
+        expect(find.text('Alerts'), findsNothing);
+        expect(find.text('Timeline'), findsNothing);
+      },
+    );
   });
 }

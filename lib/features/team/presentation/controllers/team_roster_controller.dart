@@ -31,13 +31,6 @@ final teamRosterProvider = StreamProvider.autoDispose.family<Result<List<TeamMem
   return ref.watch(teamRepositoryProvider).watchRoster(teamId);
 });
 
-/// The resolved [Team] document for [teamId] — a one-shot fetch, since
-/// team metadata (name, age group) doesn't need a live stream the way the
-/// roster does.
-final teamProvider = FutureProvider.autoDispose.family<Result<Team?>, String>((ref, teamId) {
-  return ref.watch(teamRepositoryProvider).getTeam(teamId);
-});
-
 /// A roster member paired with their own real `trainingStatus` — `null`
 /// until they've set one, or while their own `users/{uid}` read hasn't
 /// resolved yet. Coach entries are excluded; `members` only ever holds

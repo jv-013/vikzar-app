@@ -104,5 +104,46 @@ void main() {
         expect(find.text('2–4 weeks'), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'a single-workspace account never shows Switch Workspace (Phase 13 §4)',
+      (tester) async {
+        await _pump(
+          tester,
+          AppUser(
+            uid: 'u3',
+            email: 'p3@example.com',
+            displayName: 'Solo Player',
+            workspaces: const UserWorkspaces(player: PlayerWorkspace()),
+            defaultWorkspace: WorkspaceType.player,
+          ),
+        );
+
+        expect(find.text('Switch Workspace'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'a dual-workspace account shows Switch Workspace with the current '
+      'workspace label (Phase 13 §4)',
+      (tester) async {
+        await _pump(
+          tester,
+          AppUser(
+            uid: 'u4',
+            email: 'p4@example.com',
+            displayName: 'Dual Account',
+            workspaces: const UserWorkspaces(
+              player: PlayerWorkspace(),
+              coach: CoachWorkspace(),
+            ),
+            defaultWorkspace: WorkspaceType.player,
+          ),
+        );
+
+        expect(find.text('Switch Workspace'), findsOneWidget);
+        expect(find.text('Currently: Player'), findsOneWidget);
+      },
+    );
   });
 }

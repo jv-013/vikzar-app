@@ -5,6 +5,7 @@ import {
   parseCompleteSessionPayload,
   parseSubmitAlertPayload,
   parseSubmitReportPayload,
+  parseCreatePlannedSessionPayload,
 } from "../../src/contracts/types";
 
 // Example payloads mirror BACKEND_SPECIFICATION.md §21's own JSON examples exactly.
@@ -42,6 +43,10 @@ describe("parseStartSessionPayload", () => {
 
   it("rejects an empty deviceIds array", () => {
     expect(() => parseStartSessionPayload({ ...valid, deviceIds: [] })).toThrow(HttpsError);
+  });
+
+  it("rejects an unknown top-level field (Phase 13 §8)", () => {
+    expect(() => parseStartSessionPayload({ ...valid, evilField: "x" })).toThrow(HttpsError);
   });
 
   it("rejects a missing sessionId", () => {
@@ -121,6 +126,68 @@ describe("parseIngestLiveTickPayload", () => {
       parseIngestLiveTickPayload({ ...valid, deviceBattery: { "SP-1": "full" } })
     ).toThrow(HttpsError);
   });
+
+  it("accepts the additive deviceRssi and capturePhase fields", () => {
+    const result = parseIngestLiveTickPayload({
+      ...valid,
+      deviceRssi: { "SP-7F3A21C9": -58 },
+      capturePhase: "recording",
+    });
+    expect(result.deviceRssi).toEqual({ "SP-7F3A21C9": -58 });
+    expect(result.capturePhase).toBe("recording");
+  });
+
+  it("omits deviceRssi and capturePhase when absent", () => {
+    const result = parseIngestLiveTickPayload(valid);
+    expect(result.deviceRssi).toBeUndefined();
+    expect(result.capturePhase).toBeUndefined();
+  });
+
+  it("rejects a non-numeric deviceRssi value", () => {
+    expect(() =>
+      parseIngestLiveTickPayload({ ...valid, deviceRssi: { "SP-1": "strong" } })
+    ).toThrow(HttpsError);
+  });
+
+  it("rejects an invalid capturePhase", () => {
+    expect(() =>
+      parseIngestLiveTickPayload({ ...valid, capturePhase: "preparing" })
+    ).toThrow(HttpsError);
+  });
+
+  it("rejects an unknown top-level field (Phase 13 §8)", () => {
+    expect(() => parseIngestLiveTickPayload({ ...valid, evilField: "x" })).toThrow(HttpsError);
+  });
+
+  it("rejects a riskScore outside 0-1 (Phase 13 §8)", () => {
+    expect(() =>
+      parseIngestLiveTickPayload({ ...valid, metrics: { ...valid.metrics, riskScore: 1.5 } })
+    ).toThrow(HttpsError);
+    expect(() =>
+      parseIngestLiveTickPayload({ ...valid, metrics: { ...valid.metrics, riskScore: -0.1 } })
+    ).toThrow(HttpsError);
+  });
+
+  it("rejects a negative currentLoad (Phase 13 §8)", () => {
+    expect(() =>
+      parseIngestLiveTickPayload({ ...valid, metrics: { ...valid.metrics, currentLoad: -1 } })
+    ).toThrow(HttpsError);
+  });
+
+  it("rejects a deviceBattery value outside 0-100 (Phase 13 §8)", () => {
+    expect(() =>
+      parseIngestLiveTickPayload({ ...valid, deviceBattery: { "SP-1": 101 } })
+    ).toThrow(HttpsError);
+    expect(() =>
+      parseIngestLiveTickPayload({ ...valid, deviceBattery: { "SP-1": -1 } })
+    ).toThrow(HttpsError);
+  });
+
+  it("rejects a deviceRssi value outside -120..0 dBm (Phase 13 §8)", () => {
+    expect(() =>
+      parseIngestLiveTickPayload({ ...valid, deviceRssi: { "SP-1": 5 } })
+    ).toThrow(HttpsError);
+  });
 });
 
 describe("parseCompleteSessionPayload", () => {
@@ -169,6 +236,25 @@ describe("parseCompleteSessionPayload", () => {
         summaryMetrics: { ...valid.summaryMetrics, riskFactors: "none" },
       })
     ).toThrow(HttpsError);
+  });
+
+  it("rejects a dataCompleteness outside 0-1 (Phase 13 §8)", () => {
+    expect(() => parseCompleteSessionPayload({ ...valid, dataCompleteness: 1.5 })).toThrow(
+      HttpsError
+    );
+  });
+
+  it("rejects an overallRiskScore outside 0-1 (Phase 13 §8)", () => {
+    expect(() =>
+      parseCompleteSessionPayload({
+        ...valid,
+        summaryMetrics: { ...valid.summaryMetrics, overallRiskScore: 2 },
+      })
+    ).toThrow(HttpsError);
+  });
+
+  it("rejects an unknown top-level field (Phase 13 §8)", () => {
+    expect(() => parseCompleteSessionPayload({ ...valid, evilField: "x" })).toThrow(HttpsError);
   });
 });
 
@@ -244,5 +330,46 @@ describe("parseSubmitReportPayload", () => {
     const { summary, ...rest } = valid;
     void summary;
     expect(() => parseSubmitReportPayload(rest)).toThrow(HttpsError);
+  });
+});
+
+describe("parseCreatePlannedSessionPayload", () => {
+  const valid = {
+    teamId: "team_riverside_u18",
+    title: "Tuesday Training",
+    type: "training",
+    scheduledAt: "2026-07-28T16:00:00.000Z",
+  };
+
+  it("parses a valid payload", () => {
+    const result = parseCreatePlannedSessionPayload(valid);
+    expect(result.teamId).toBe(valid.teamId);
+    expect(result.title).toBe(valid.title);
+    expect(result.type).toBe("training");
+    expect(result.scheduledAt.toISOString()).toBe(valid.scheduledAt);
+    expect(result.notes).toBeUndefined();
+  });
+
+  it("accepts an optional notes field", () => {
+    const result = parseCreatePlannedSessionPayload({ ...valid, notes: "Bring cones." });
+    expect(result.notes).toBe("Bring cones.");
+  });
+
+  it("rejects an invalid type", () => {
+    expect(() => parseCreatePlannedSessionPayload({ ...valid, type: "scrimmage" })).toThrow(
+      HttpsError
+    );
+  });
+
+  it("rejects a missing teamId", () => {
+    const { teamId, ...rest } = valid;
+    void teamId;
+    expect(() => parseCreatePlannedSessionPayload(rest)).toThrow(HttpsError);
+  });
+
+  it("rejects an unknown top-level field (Phase 13 §8)", () => {
+    expect(() => parseCreatePlannedSessionPayload({ ...valid, evilField: "x" })).toThrow(
+      HttpsError
+    );
   });
 });

@@ -1,4 +1,11 @@
 node_modules/
-lib/
+# Confirmed real bug, fixed Phase 13: an unanchored `lib/` here matched
+# ANY directory named `lib` under functions/ — including functions/src/lib/,
+# this project's actual TypeScript source directory (admin.ts,
+# ingestionAuth.ts, validation.ts, notifications.ts, adminAuth.ts,
+# coachAuth.ts, rateLimit.ts, appCheck.ts), silently excluding all of it
+# from git. Anchored to only the compiled build output this was meant
+# to ignore.
+/lib/
 *.log
 .env

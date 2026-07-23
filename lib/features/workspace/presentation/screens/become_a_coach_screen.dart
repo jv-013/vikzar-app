@@ -18,7 +18,7 @@ import '../../domain/models/coach_request.dart';
 /// "Become a Coach" — DESIGN_SPECIFICATION.md §13's Phase 7 addition:
 /// reached from the profile sheet by a Player-only account. Collects
 /// Coaching Level, Club/Academy Name, Current Role, and an optional
-/// Organization Email, then submits a `coachRequests` document to
+/// Club Email, then submits a `coachRequests` document to
 /// Firestore (**Revised at Phase 8B**, DECISIONS.md ADR-051) — there is
 /// still **no admin-approval flow**: submitting a request never grants
 /// Coach access immediately, per
@@ -128,7 +128,7 @@ class _BecomeACoachScreenState extends ConsumerState<BecomeACoachScreen> {
           ),
           const SizedBox(height: SpacingTokens.space16),
           VikzarTextField(
-            label: 'Organization Email (optional)',
+            label: 'Club Email (optional)',
             controller: _orgEmailController,
             enabled: !_isSubmitting,
             keyboardType: TextInputType.emailAddress,

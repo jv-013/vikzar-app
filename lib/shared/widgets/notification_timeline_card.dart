@@ -33,6 +33,7 @@ class NotificationTimelineCard extends StatelessWidget {
     NotificationCategory.reportReady => Symbols.description,
     NotificationCategory.sessionSummary => Symbols.timer,
     NotificationCategory.teamInvite => Symbols.groups,
+    NotificationCategory.sessionScheduled => Symbols.event,
     NotificationCategory.system => Symbols.info,
   };
 
@@ -41,6 +42,7 @@ class NotificationTimelineCard extends StatelessWidget {
     NotificationCategory.reportReady => 'Report',
     NotificationCategory.sessionSummary => 'Session',
     NotificationCategory.teamInvite => 'Team',
+    NotificationCategory.sessionScheduled => 'Scheduled',
     NotificationCategory.system => 'System',
   };
 

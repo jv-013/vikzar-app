@@ -29,11 +29,19 @@ export const deviceHeartbeatMonitor = onSchedule("every 30 seconds", async () =>
     if (deviceIds.length === 0) continue;
 
     for (const deviceId of deviceIds) {
-      const deviceSnap = await db().collection("devices").doc(deviceId).get();
+      const deviceRef = db().collection("devices").doc(deviceId);
+      const deviceSnap = await deviceRef.get();
       if (!deviceSnap.exists) continue;
       const lastSeenAt = deviceSnap.data()?.["lastSeenAt"] as Timestamp | undefined;
       if (lastSeenAt == null) continue; // never reported yet — not this monitor's concern
       if (now - lastSeenAt.toMillis() <= HEARTBEAT_TIMEOUT_MS) continue;
+      if (deviceSnap.data()?.["connectivityStatus"] === "disconnected") continue; // already flagged
+
+      alertBatch.set(
+        deviceRef,
+        { connectivityStatus: "disconnected", updatedAt: Timestamp.now() },
+        { merge: true }
+      );
 
       const alertRef = db().collection("alerts").doc();
       alertBatch.set(alertRef, {

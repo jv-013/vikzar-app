@@ -216,13 +216,17 @@ Document ID equals the hardware device identifier (§21).
 | `ownerId` | string | No | uid of the assigned player; null if unassigned (pooled). |
 | `assignedTeamId` | string | No | Reference to `teams/{teamId}`. |
 | `firmwareVersion` | string | No | |
-| `lastSeenAt` | timestamp | No | Last time the laptop reported this device as connected. |
-| `lastKnownBattery` | number | No | 0–100. |
+| `lastSeenAt` | timestamp | No | Last time the laptop reported this device as connected. Written by `ingestLiveTick` (Phase 11 fix — previously documented but never actually written by any function, which left `deviceHeartbeatMonitor`'s disconnect check permanently dead). |
+| `lastKnownBattery` | number | No | 0–100. Written by `ingestLiveTick` from that tick's `deviceBattery` map. |
+| `lastKnownRssi` | number | No | Additive (Phase 11 Section 3/4). Written by `ingestLiveTick` from that tick's `deviceRssi` map, when the transport reports it. |
+| `connectivityStatus` | string (enum) | No | Additive (Phase 11 Section 3/4). One of `online`, `offline`, `low_battery`, `charging`, `disconnected`, `unknown`. Real-time telemetry, distinct from `status` below (which is the administrative/inventory lifecycle). Cloud-Function-written only: `ingestLiveTick` sets `online`/`low_battery` from the reported battery level; `deviceHeartbeatMonitor` sets `disconnected` on timeout. `offline`/`charging`/`unknown` are reserved for a future transport that can report them — no current path fabricates them. |
+| `mountLocation` | string (enum) | No | Additive (Phase 11 Section 3). One of `shin_guard`, `compression_sleeve`, `thigh_band`. Coach-settable at assignment time, per [vikzar-ai's Universal Pod Mounting research](../vikzar-ai/docs/research/UNIVERSAL_POD_MOUNTING.md) recommendation. |
+| `laterality` | string (enum) | No | Additive (Phase 11 Section 3). One of `left`, `right`. Coach-settable, distinguishes a player's two Pods/two EMG bands — closes the gap noted in [vikzar-ai's Bluetooth architecture doc](../vikzar-ai/docs/architecture/08_PRODUCTION_BLUETOOTH_ARCHITECTURE.md). |
 | `status` | string (enum) | Yes | One of `active`, `inactive`, `maintenance`, `lost`. |
 | `createdAt` | timestamp | Yes | |
 | `updatedAt` | timestamp | Yes | |
 
-**Written by:** Flutter Application (coach, for `ownerId`/`assignedTeamId`/`status` assignment fields only), Cloud Function (`lastSeenAt`, `lastKnownBattery`, telemetry fields — never client-written). **Read by:** Flutter Application (owner; coach of `assignedTeamId`).
+**Written by:** Flutter Application (coach, for `ownerId`/`assignedTeamId`/`status`/`mountLocation`/`laterality` assignment fields only), Cloud Function (`lastSeenAt`, `lastKnownBattery`, `lastKnownRssi`, `connectivityStatus` telemetry fields — never client-written). **Read by:** Flutter Application (owner; coach of `assignedTeamId`).
 
 ### 1.8 `sessions/{sessionId}`
 
@@ -265,6 +269,8 @@ Subcollection with a single fixed document ID, `current`. Overwritten roughly on
 | `connectionStatus` | string (enum) | Yes | One of `connected`, `degraded`, `reconnecting`. |
 | `metrics` | map | Yes | See §8. |
 | `deviceBattery` | map&lt;string, number&gt; | No | Keyed by `deviceId`. |
+| `deviceRssi` | map&lt;string, number&gt; | No | Additive (Phase 11 Section 3/4). Keyed by `deviceId`, same shape as `deviceBattery`. Omitted entirely by any transport that doesn't report signal strength. |
+| `capturePhase` | string (enum) | No | Additive (Phase 11 Section 3). One of `recording`, `paused`, `uploading` — a laptop-operator-console concept, finer than `sessions.status`'s single `live` value. Does not replace or extend `sessions.status`, which remains authoritative for querying/indexing/Security Rules. |
 
 **Written by:** Cloud Function only (`ingestLiveTick`). **Read by:** Flutter Application (playerId == self; coach of `teamId`) — though in practice the Coach Dashboard reads §1.4's fan-out collection instead, for efficiency.
 
@@ -315,7 +321,7 @@ Top-level collection. Comprehensive, often longer-form output — a single sessi
 
 ### 1.12 `coachRequests/{requestId}`
 
-Top-level collection. **Added Phase 8B.** A player-held account's request to also gain a Coach workspace, submitted via "Become a Coach" ([DESIGN_SPECIFICATION.md](DESIGN_SPECIFICATION.md)). Submitting a request never grants the workspace — there is no admin approval tooling in this codebase yet (§17 lists no `reviewCoachRequest` function); this collection exists purely to durably record the request for a human to review out-of-band until that tooling is built.
+Top-level collection. **Added Phase 8B.** A player-held account's request to also gain a Coach workspace, submitted via "Become a Coach" ([DESIGN_SPECIFICATION.md](DESIGN_SPECIFICATION.md)). Submitting a request never grants the workspace immediately. **Phase 13:** `approveCoachRequest` (§17, admin-claim-gated) can now transition `status` to `approved` and grant `workspaces.coach` on the requester's `users/{uid}` in one atomic operation — there is still no admin **UI** in this codebase (no screen lists pending requests), so a human must currently invoke this Callable directly with the `requestId`; see DECISIONS.md ADR-076.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -327,10 +333,30 @@ Top-level collection. **Added Phase 8B.** A player-held account's request to als
 | `club` | string | No | Club/academy name. |
 | `title` | string | No | Current role/title. |
 | `orgEmail` | string | No | Optional organizational email supplied for verification. |
-| `status` | string (enum) | Yes | One of `pending`, `approved`, `rejected`. Always written as `pending` by the client; only a future admin process transitions it. |
+| `status` | string (enum) | Yes | One of `pending`, `approved`, `rejected`. Always written as `pending` by the client; only `approveCoachRequest` (Cloud Function) transitions it. |
 | `createdAt` | timestamp | Yes | |
+| `approvedAt` | timestamp | No | Set by `approveCoachRequest` (Phase 13). |
 
-**Written by:** Flutter Application (self, creation only, `status` always `pending`). **Never** client-updated after creation. **Read by:** Flutter Application (self, to see their own request's status — read-only, no in-app effect from status changes yet).
+**Written by:** Flutter Application (self, creation only, `status` always `pending`); Cloud Function (`approveCoachRequest` — `status`/`approvedAt` only). **Never** otherwise client-updated. **Read by:** Flutter Application (self, to see their own request's status).
+
+### 1.13 `plannedSessions/{plannedSessionId}`
+
+Top-level collection. **Added Phase 13 (§5).** A coach-scheduled training/match slot — distinct from `sessions/{sessionId}` (§1.8), which represents a real hardware capture and remains exclusively laptop-authored. Created only via `createPlannedSession` (§17, Coach-callable) — the Flutter "Create Session" UI never writes this collection directly.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `plannedSessionId` | string | Yes | Document ID. |
+| `teamId` | string | Yes | |
+| `title` | string | Yes | |
+| `type` | string (enum) | Yes | `training` or `match` — same enum as `sessions.type`. |
+| `scheduledAt` | timestamp | Yes | |
+| `notes` | string | No | |
+| `status` | string (enum) | Yes | One of `scheduled`, `cancelled`, `completed`. Always `scheduled` at creation — no Cloud Function transitions this yet (a documented, honest gap: no mechanism links a planned session to the real `sessions/{sessionId}` a laptop later creates for that slot). |
+| `createdBy` | string | Yes | The creating coach's uid. |
+| `createdAt` | timestamp | Yes | |
+| `updatedAt` | timestamp | Yes | |
+
+**Written by:** Cloud Function only (`createPlannedSession`). **Never** client-written. **Read by:** Flutter Application (coach or player of `teamId`).
 
 ---
 
@@ -589,10 +615,17 @@ Extends [ARCHITECTURE.md §12](ARCHITECTURE.md#12-cloud-functions-responsibiliti
 | `onSessionCompleted` | Firestore trigger on `sessions/{sessionId}` status transition to `completed`/`completed_with_gaps`/`aborted` | Updates `users/{uid}.careerStats` (arithmetic aggregation only); removes or marks inactive the corresponding `liveMonitoring` entry; triggers a session-summary notification (§18). |
 | `onAlertCreated` | Firestore trigger on `alerts/{alertId}` creation | Dispatches FCM push and writes the corresponding `users/{uid}/notifications` record(s) — to the player and to each coach of `teamId`. |
 | `onReportCreated` | Firestore trigger on `reports/{reportId}` creation | Dispatches FCM push and writes the corresponding notification record(s). |
-| `deviceHeartbeatMonitor` | Scheduled (e.g. every 30 seconds) | Checks `devices.lastSeenAt` for devices referenced by any currently-`live` session; raises a `device_disconnected` alert via the same path as `submitAlert` if a device has gone silent past a defined timeout. Timeout-checking only, not signal analysis. |
+| `deviceHeartbeatMonitor` | Scheduled (e.g. every 30 seconds) | Checks `devices.lastSeenAt` for devices referenced by any currently-`live` session; raises a `device_disconnected` alert via the same path as `submitAlert` if a device has gone silent past a defined timeout, and marks the device `connectivityStatus: "disconnected"` (Phase 11/13). Timeout-checking only, not signal analysis. |
 | `weeklySummaryAggregator` | Scheduled (weekly) | Aggregates existing `sessions.summaryMetrics` for the prior period into `reports` documents of type `weekly_summary`. Arithmetic aggregation of already-computed values only. |
+| `createPlannedSession` | Callable (**Coach** — Phase 13 §5) | Validates payload; authorizes via `teams/{teamId}.coachIds` (Firestore lookup, never a client-claimed `teamId`); creates `plannedSessions/{plannedSessionId}`. The first Callable invoked by a real product end user rather than the laptop ingestion principal. |
+| `onPlannedSessionCreated` | Firestore trigger on `plannedSessions/{plannedSessionId}` creation (Phase 13) | Notifies every active player on the team (`type: "session_scheduled"`). |
+| `approveCoachRequest` | Callable (**Admin** — Phase 13 §3) | Admin-claim-gated (`admin: true`, mirrors the ingestion principal's claim pattern); sets `workspaces.coach` on the requester's `users/{uid}` and marks `coachRequests/{id}.status = "approved"`. No admin UI exists yet — see DECISIONS.md ADR-076. |
 
-Every Callable function in this table enforces the authorization check described in §0 and §3 before performing any write: the calling principal must carry `ingestor: true` and the payload's `teamId`/`orgId` must be within that principal's authorized scope.
+Every laptop-ingestion Callable function in this table enforces the authorization check described in §0 and §3 before performing any write: the calling principal must carry `ingestor: true` and the payload's `teamId`/`orgId` must be within that principal's authorized scope (Phase 13: derived from the referenced `sessions` document, not the payload's claimed value — see DECISIONS.md ADR-074). `createPlannedSession` and `approveCoachRequest` use a different trust model (a real signed-in end user, or an `admin`-claimed principal, respectively) — see DECISIONS.md ADR-075/ADR-076.
+
+**Rate limiting (Phase 13 §10):** `ingestLiveTick` (20 calls/sec/principal) and `createPlannedSession` (10 calls/min/coach) are bounded by `functions/src/lib/rateLimit.ts`. `functions/src/index.ts` sets `maxInstances: 20` globally as a budget-protection ceiling (§14).
+
+**App Check (Phase 13 §9):** wired client-side (`lib/services/firebase/app_check_service.dart`) but not yet enforced on any function — see DECISIONS.md ADR-076 for the exact rollout order and why enforcing it prematurely would break every existing client.
 
 ---
 
@@ -676,6 +709,7 @@ Two distinct timestamp concepts are used throughout, and must not be conflated:
 **Required fields:** `sessionId`, `playerId`, `sequenceNumber`, `tickTimestamp`, `connectionStatus`, `metrics.currentLoad`, `metrics.cumulativeImpacts`, `metrics.riskScore`, `metrics.riskLevel`.
 **Optional fields:** `teamId`, `metrics.emgActivation` (present only if an EMG Thigh Band is active for this session), `deviceBattery`.
 **Additive optional fields (added Platform Lock pass, DECISIONS.md ADR-066):** `metrics.confidence`, `metrics.fatigueScore`/`.fatigueLevel`, `metrics.workloadRatio`/`.workloadStatus`, `metrics.asymmetryScore`/`.asymmetryStatus`, `metrics.muscleBalanceScore`/`.muscleBalanceStatus` — carries the laptop Risk Engine's real sub-score breakdown, which is richer than this contract originally captured. Never required; the Cloud Function accepts a payload without any of them exactly as before.
+**Additive optional fields (added Phase 11, DECISIONS.md ADR-071):** `deviceRssi` (same shape as `deviceBattery`), `capturePhase` (one of `recording`/`paused`/`uploading` — a laptop-console concept, does not replace `sessions.status`). As of this pass, `ingestLiveTick` also upserts `devices/{deviceId}.lastSeenAt`/`.lastKnownBattery`/`.lastKnownRssi`/`.connectivityStatus` for every device present in `deviceBattery`/`deviceRssi` — closing a gap where those fields were documented but never actually written by any function (§1.7).
 
 ```json
 {

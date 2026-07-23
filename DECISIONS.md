@@ -704,3 +704,77 @@ This supersedes the `role` field definition in [BACKEND_SPECIFICATION.md §1.5](
 - **Date:** 2026-07-22
 
 **Documented in full in:** `vikzar-ai/docs/research/UNIVERSAL_POD_MOUNTING.md`, `vikzar-ai/docs/research/SENSOR_SPECIFICATIONS.md`.
+
+### ADR-071: Phase 11 — Device Telemetry Write Gap Fixed; Additive BLE Device/Battery/Capture-Phase Schema
+
+- **Decision ID:** ADR-071
+- **Decision:** Two changes, both additive, neither touches a locked/deployed field:
+  1. **Bug fix**: `ingestLiveTick` now upserts `devices/{deviceId}.lastSeenAt`/`.lastKnownBattery`/`.lastKnownRssi`/`.connectivityStatus` for every device present in that tick's `deviceBattery`/`deviceRssi` maps. §1.7 already *documented* these as Cloud-Function-written, but no function ever actually wrote them — `deviceHeartbeatMonitor`'s disconnect check reads `lastSeenAt`, which was therefore always `null`, so the check could never fire. `deviceHeartbeatMonitor` itself now also marks a timed-out device `connectivityStatus: "disconnected"` and skips re-alerting a device already flagged, fixing an unbounded-repeat-alert issue in the same pass.
+  2. **New additive optional fields**: `devices/{deviceId}.mountLocation` (`shin_guard`/`compression_sleeve`/`thigh_band`, coach-settable) and `.laterality` (`left`/`right`, coach-settable) close two previously-documented-but-unimplemented gaps (ADR-070's Universal Pod research recommendation, and the Bluetooth architecture doc's "two Pods per player need distinct logical IDs" gap). `devices/{deviceId}.connectivityStatus` (`online`/`offline`/`low_battery`/`charging`/`disconnected`/`unknown`) is a new real-time telemetry field, explicitly distinct from the existing `status` (administrative/inventory lifecycle — unchanged). `sessions/{id}/live/current.deviceRssi` and `.capturePhase` (`recording`/`paused`/`uploading`) mirror `deviceBattery`'s existing optional pattern.
+- **Reason:** Section 2/3/4 of this phase's brief asked for a Firestore ownership/completeness audit and a production-ready BLE device/battery contract. Reading every Cloud Function's write path directly (not just the spec prose) surfaced the telemetry write gap as a real, confirmed bug — not a hypothetical one — that would have silently prevented the device-disconnect alert from ever firing during a real pilot session.
+- **What this does not do:** does not touch `vikzar-ai`'s `HardwareProvenance` schema (ADR-070's locked ETL→AI boundary is unaffected — this is purely the Firestore/coach-management side); does not change or redefine the locked, deployed `sessions.status` enum (`live`/`completed`/`completed_with_gaps`/`aborted`) — `capturePhase` is a separate, optional, laptop-console concept that coexists with it; does not fabricate RSSI or charging-state data — those wire fields exist and validate correctly but nothing currently populates them, honestly left unset rather than invented.
+- **Status:** Accepted.
+- **Date:** 2026-07-22
+
+**Documented in full in:** `BACKEND_SPECIFICATION.md` §1.7, §1.9, §21.4; `functions/src/contracts/types.ts`; `functions/src/callable/ingestLiveTick.ts`; `functions/src/scheduled/deviceHeartbeatMonitor.ts`.
+
+### ADR-072: Phase 13 — Keep the `workspaces` Model; Reject Collapsing to a Single `role` Enum
+
+- **Decision ID:** ADR-072
+- **Decision:** The Phase 13 brief's first draft asked for "every authenticated user has exactly one role." The final, locked brief corrected this itself to the account's actual model: one Firebase Auth account, one `users/{uid}` document, one-or-more `workspaces` (`player`/`coach`), one `defaultWorkspace` — matching ADR-031 exactly, not replacing it. This ADR records that the two drafts were reconciled *before* any code was written, and that the existing `workspaces` model was correct all along.
+- **Reason:** ADR-031's dual-workspace model already satisfied every real requirement behind "exactly one role, backend-verified, chosen immediately after auth": Workspace Selection already asks Player/Coach right after authentication; `workspaces.{type}`/`defaultWorkspace` are already server-persisted Firestore fields (`user_repository_impl.dart`), never local-only; routing was already split into two independent `StatefulShellRoute` trees with zero `if (role == coach)` branching. Collapsing to a single-role enum would have deleted real, working, tested dual-workspace switching (`workspace_switch_sheet.dart`) and directly contradicted the brief's own "existing players may upgrade later, both flows should coexist" — an upgrade only makes sense as *adding* a workspace.
+- **What Phase 13 actually changed under this heading:** closed the one real Security Rules gap that undermined "the backend always owns this state" (see ADR-073's `users/{uid}` create-allowlist fix) and added a "Switch Workspace" row directly on the Profile screen (previously only reachable via the top-bar ProfileBadge sheet).
+- **Status:** Accepted.
+- **Date:** 2026-07-23
+
+### ADR-073: Phase 13 — Firestore Rules Security Fixes
+
+- **Decision ID:** ADR-073
+- **Decision:** Four fixes, all in `firestore.rules`, following a full line-by-line adversarial audit of all 12 pre-existing collections (result: 2 exploitable gaps, 2 data-integrity-only hardening items — no other collection had a genuine issue):
+  1. **`users/{uid}` create** — previously `if isSelf(uid)` with no field allowlist at all, letting a signing-up client self-write `careerStats` (documented Cloud-Function-only) or an arbitrary `primaryOrgId`. Now uses the same allowlist as `update`, plus requires the embedded `uid` field to match the document ID.
+  2. **`devices/{deviceId}` update** — previously only checked the coach was authorized for the device's *current* team, letting a coach of Team A reassign a device into Team B, which they don't coach. Now requires authorization on both ends. Fixing this surfaced a related pre-existing bug: `isCoachOfTeam(null)` (called for a pooled/unassigned device) called `get()` on an invalid path and always denied — pooled devices could never actually be claimed by any coach. `isCoachOfTeam` is now null-safe, and the update rule explicitly allows a null current/target team (pool claim/release).
+  3. **`teams/{teamId}/members` self-join create** — allowlisted to the exact fields Join Team writes (`uid`/`displayName`/`role`/`status`/`joinedAt`); previously unrestricted, though not exploitable (nothing read the extra fields for authorization).
+  4. **`alerts` update** — `acknowledgedBy`, if present, must now equal the caller's own uid; previously a coach could stamp a different coach's uid as the acknowledger.
+- **Reason:** Direct request from Phase 13 §6/§7, which specifically named the `users` and `devices` gaps as "already identified and must be fixed" — confirmed independently via the audit, then fixed exactly as found, not assumed.
+- **Status:** Accepted.
+- **Date:** 2026-07-23
+
+**Documented in full in:** `firestore.rules`; `SECURITY_THREAT_MODEL.md`.
+
+### ADR-074: Phase 13 — Cloud Functions Hardening (teamId Derivation, Range/Length Validation, Rate Limiting, maxInstances)
+
+- **Decision ID:** ADR-074
+- **Decision:**
+  1. **Real gap, fixed**: `ingestLiveTick`/`submitAlert`/`submitReport` previously trusted the ingestion principal's *claimed* `teamId` directly. They now fetch the referenced `sessions/{sessionId}` document first and derive `teamId` from the stored value, matching `completeSession`'s already-correct pattern — a principal scoped to Team A that knew/guessed a Team-B `sessionId` could previously mislabel or misroute data.
+  2. **Validation hardening**: `lib/validation.ts` gained `requireNumberInRange`/`optionalNumberInRange` (documented 0.0–1.0 fields: `riskScore`, `confidence`, `dataCompleteness`, `overallRiskScore`; non-negative-only where no documented upper bound exists, e.g. `currentLoad`, `score`/`contribution` in `ContributingFactor` — deliberately *not* assumed to be 0–1, since §21.6's own example uses raw values like 41/12.3), `requireBoundedString`/`optionalBoundedString` (length caps on free-text fields), and `requireExactShape` (rejects unknown top-level/nested-object fields — every `parse*Payload` now calls this first).
+  3. **Rate limiting**: `lib/rateLimit.ts`'s `enforceRateLimit`, a Firestore-doc-backed fixed-window counter (`_rateLimits/{action}_{principalId}`, Cloud-Function-only per rules), applied to `ingestLiveTick` (20/sec/principal) and `createPlannedSession` (10/min/coach) — the two highest-frequency/cost endpoints. Deliberately not applied everywhere: the other laptop Callables are inherently low-frequency (once per session), and general-purpose Auth/Callable-flood protection belongs at the Firebase App Check / GCP Console level (documented, not hand-rolled — see ADR-076).
+  4. **Budget guard**: `setGlobalOptions({ maxInstances: 20 })` in `functions/src/index.ts` — a real, code-doable ceiling against a runaway trigger loop.
+- **Reason:** Direct requests from Phase 13 §7 ("never trust frontend values"), §8 (validation), §10 (rate limiting), §14 (budget protection) — each backed by a specific, confirmed gap found by reading every function directly, not a generic checklist.
+- **Status:** Accepted.
+- **Date:** 2026-07-23
+
+**Documented in full in:** `functions/src/lib/validation.ts`, `functions/src/lib/rateLimit.ts`, `functions/src/index.ts`, `functions/src/callable/{ingestLiveTick,submitAlert,submitReport}.ts`; `SECURITY_THREAT_MODEL.md`.
+
+### ADR-075: Phase 13 — `plannedSessions` Collection and Coach Workspace Remap (5 Tabs → 4)
+
+- **Decision ID:** ADR-075
+- **Decision:** Two connected changes:
+  1. **New `plannedSessions/{plannedSessionId}` collection** — a coach-scheduled training/match slot, deliberately distinct from the laptop-authored `sessions/{sessionId}` (§1.8), which represents a real hardware capture and remains exclusively laptop-authored via `startSession`. Created only via `createPlannedSession`, a **Coach-callable** Cloud Function (a new category — every prior Callable was laptop-ingestion-only) authorized by `lib/coachAuth.ts`'s `requireCoachOfTeam`, which derives authorization from `teams/{teamId}.coachIds` in Firestore, never from a client-claimed `teamId`/role. `onPlannedSessionCreated` fans out `session_scheduled` notifications (an additive `NotificationType`) to the team's active roster.
+  2. **Coach bottom-nav remapped** from Home/Live/Team/Alerts/Profile to Dashboard/Players/Sessions/Profile. Live dropped entirely (100% `ComingSoonScreen` placeholder, nothing real lost). Alerts dropped as a standalone tab but its screen/controller/repository/acknowledge-flow are preserved, reached from a new, real "Active Alerts" card on the Dashboard. Team renamed to Players (identical screen/content). Sessions is genuinely new: "Upcoming Sessions" is real (`plannedSessions`); "Session History" is an honest empty state, since it would read from real hardware captures that don't exist yet — no fake "create session" form was built against the locked `sessions` collection, which a coach client cannot legitimately write to.
+- **Reason:** Direct request from Phase 13 §2/§5, including the explicit architecture: "Coach → Callable Cloud Function → Backend Validation → Firestore → Cloud Functions → Players Updated" — implemented exactly as specified, as a new collection rather than repurposing the locked `sessions` schema (which would have corrupted its `pipelineVersion`/`generatedBy` invariants, only meaningful for a real capture).
+- **Status:** Accepted.
+- **Date:** 2026-07-23
+
+**Documented in full in:** `BACKEND_SPECIFICATION.md` (pending §1.13/§17 update), `functions/src/callable/createPlannedSession.ts`, `functions/src/triggers/onPlannedSessionCreated.ts`, `lib/features/sessions/`, `lib/routing/app_router.dart`, `lib/routing/shells/app_shell_scaffold.dart`.
+
+### ADR-076: Phase 13 — Firebase App Check (Client-Side Wired, Not Yet Enforced) and Admin-Claim Pattern for Coach Approval
+
+- **Decision ID:** ADR-076
+- **Decision:** Two additive, deliberately incomplete pieces, both honestly documented as such:
+  1. **App Check**: `lib/services/firebase/app_check_service.dart` activates the App Check SDK on every platform (debug provider in debug builds, Play Integrity/App Attest in release; Web only if a reCAPTCHA v3 site key is supplied via `--dart-define`, since none is committed to this repo). `functions/src/lib/appCheck.ts` documents the exact rollout order but does **not** set `enforceAppCheck: true` on any function yet — doing so before every real client sends tokens (and before the project owner registers this app with each attestation provider in their respective Consoles) would instantly break every existing install, including the laptop ingestion pipeline, which needs its own separate App Check registration path.
+  2. **`approveCoachRequest`**: the backend half of Become-a-Coach approval (§3's "if approved: workspaces.coach = true"). Gated by a new `admin: true` custom claim (`lib/adminAuth.ts`), mirroring the existing `ingestor: true` pattern exactly. Sets `workspaces.coach = {teamIds: []}` on the requesting user and `coachRequests/{id}.status = 'approved'` — never touches `defaultWorkspace` (approval adds a workspace, per ADR-031/ADR-072, never silently switches which one is primary). No admin UI was built this phase (none is specified anywhere in the brief); provisioning the admin principal's custom claim is a project-owner Console/Admin-SDK action, the same category as ADR-050's Firebase project connection and the ingestion principal's own provisioning (§3).
+- **Reason:** Direct requests from §9 (App Check) and §3 (coach approval) — implemented as far as code alone can go, with the remaining Console-dependent steps named explicitly rather than silently left undone.
+- **Status:** Accepted.
+- **Date:** 2026-07-23
+
+**Documented in full in:** `lib/services/firebase/app_check_service.dart`, `functions/src/lib/appCheck.ts`, `functions/src/lib/adminAuth.ts`, `functions/src/callable/approveCoachRequest.ts`.

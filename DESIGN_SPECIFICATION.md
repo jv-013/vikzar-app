@@ -334,7 +334,7 @@ One Flutter application. Two **workspaces** (Player, Coach) — not two apps, no
 flowchart TD
     A[Signed-In Session] --> B{Active Workspace}
     B -->|Player| C[Player Shell: Home / Timeline / History / Profile]
-    B -->|Coach| D[Coach Shell: Home / Live / Team / Alerts / Profile]
+    B -->|Coach| D[Coach Shell: Dashboard / Players / Sessions / Profile]
     C -.switch, no logout.-> D
     D -.switch, no logout.-> C
 ```

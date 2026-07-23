@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../../core/errors/failure_message_mapper.dart';
 import '../../../../design_system/components/vikzar_chip_group.dart';
 import '../../../../design_system/theme/brand_colors.dart';
 import '../../../../design_system/theme/vikzar_elevation.dart';
@@ -192,21 +193,43 @@ class _AlertCard extends ConsumerWidget {
 void _confirmAcknowledge(BuildContext context, WidgetRef ref, Alert alert) {
   showDialog<void>(
     context: context,
-    builder: (context) {
+    builder: (dialogContext) {
       return AlertDialog(
         title: const Text('Acknowledge alert'),
         content: Text(alert.message),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
           TextButton(
-            onPressed: () {
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            // Phase 13 §16 fix: this was previously fired without
+            // `await` and the dialog closed unconditionally — any
+            // failure (a Firestore write denial, network loss) was
+            // silently discarded, and the UI lied by showing success
+            // regardless. Now awaits the real result and only closes on
+            // success; a failure surfaces via a SnackBar and the dialog
+            // stays open so the coach can retry.
+            onPressed: () async {
               final coachUid = ref.read(currentUidProvider);
-              if (coachUid != null) {
-                ref
-                    .read(alertRepositoryProvider)
-                    .acknowledgeAlert(alertId: alert.alertId, coachUid: coachUid);
+              if (coachUid == null) {
+                Navigator.of(dialogContext).pop();
+                return;
               }
-              Navigator.of(context).pop();
+              final result = await ref
+                  .read(alertRepositoryProvider)
+                  .acknowledgeAlert(alertId: alert.alertId, coachUid: coachUid);
+              if (!dialogContext.mounted) return;
+              result.fold(
+                onSuccess: (_) => Navigator.of(dialogContext).pop(),
+                onFailure: (failure) {
+                  Navigator.of(dialogContext).pop();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(FailureMessageMapper.toMessage(failure))),
+                  );
+                },
+              );
             },
             child: const Text('Acknowledge'),
           ),

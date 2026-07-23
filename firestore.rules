@@ -35,8 +35,14 @@ service cloud.firestore {
     // BACKEND_SPECIFICATION.md §15: "Every rule of the form 'coach of
     // teamId' is implemented as: request.auth.uid in
     // get(.../teams/$(teamId)).data.coachIds."
+    // Phase 13 fix: `teamId == null` now short-circuits to `false` rather
+    // than calling `teamDoc(null)` (a `get()` on an invalid path, which
+    // denies the whole rule) — needed so `devices/{deviceId}`'s
+    // pooled/unassigned devices (`assignedTeamId == null`) can be
+    // reasoned about explicitly instead of always failing closed by
+    // accident.
     function isCoachOfTeam(teamId) {
-      return isSignedIn() && request.auth.uid in teamDoc(teamId).coachIds;
+      return teamId != null && isSignedIn() && request.auth.uid in teamDoc(teamId).coachIds;
     }
 
     function isMemberOfTeam(teamId) {
@@ -84,8 +90,14 @@ service cloud.firestore {
 
         // A coach manages any roster entry; a player may only create
         // their own (self-service Join Team, ADR-051) — never someone
-        // else's.
-        allow create: if isCoachOfTeam(teamId) || isSelf(memberUid);
+        // else's. Phase 13 hardening: a self-joining player is now
+        // allowlisted to the fields Join Team actually sets — no rule
+        // elsewhere reads `role`/`status`/`jerseyNumber` for
+        // authorization today, so this was a data-integrity gap, not an
+        // exploitable one, but closing it is cheap.
+        allow create: if isCoachOfTeam(teamId) ||
+          (isSelf(memberUid) &&
+            request.resource.data.keys().hasOnly(['uid', 'displayName', 'role', 'status', 'joinedAt']));
         allow update: if isCoachOfTeam(teamId);
         allow delete: if isCoachOfTeam(teamId);
       }
@@ -107,17 +119,29 @@ service cloud.firestore {
           resource.data.workspaces.player.teamId != null &&
           isCoachOfTeam(resource.data.workspaces.player.teamId));
 
-      allow create: if isSelf(uid);
+      // Phase 13 fix: previously `if isSelf(uid)` with no field allowlist
+      // at all — a signing-up client could self-write `careerStats`
+      // (Cloud-Function-only, per §1.5) or an arbitrary `primaryOrgId`
+      // at account creation. Now uses the same allowlist as `update`
+      // below, plus requires the embedded `uid` field to match the
+      // document ID.
+      allow create: if isSelf(uid) &&
+        request.resource.data.uid == uid &&
+        request.resource.data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'avatarUrl', 'fcmTokens',
+          'workspaces', 'defaultWorkspace', 'playerProfile', 'coachProfile',
+          'status', 'createdAt', 'updatedAt',
+        ]);
 
-      // Self-scoped writes only. `careerStats` remains denied — no
-      // session pipeline exists to derive it from yet.
+      // Self-scoped writes only. `careerStats` and `primaryOrgId` remain
+      // denied — both are Cloud-Function-only (§1.5).
       allow update: if isSelf(uid) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'uid', 'email', 'displayName', 'avatarUrl', 'fcmTokens',
           'workspaces', 'defaultWorkspace', 'playerProfile', 'coachProfile',
           'status', 'createdAt', 'updatedAt',
         ]) &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['careerStats']);
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['careerStats', 'primaryOrgId']);
 
       allow delete: if false;
 
@@ -147,8 +171,17 @@ service cloud.firestore {
     match /devices/{deviceId} {
       allow read: if isSignedIn() &&
         (resource.data.ownerId == request.auth.uid || isCoachOfTeam(resource.data.assignedTeamId));
-      allow update: if isSignedIn() && isCoachOfTeam(resource.data.assignedTeamId) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId', 'assignedTeamId', 'status', 'updatedAt']);
+      // Phase 13 fix: previously only checked the coach was authorized
+      // for the device's *current* team, so a coach of Team A could
+      // reassign a device into Team B, which they don't coach. Now
+      // requires authorization on both ends: the device's current team
+      // (or it's unassigned/pooled, per §7 — any signed-in coach may
+      // claim a pooled device) and the target team (or it's being
+      // released back to the pool).
+      allow update: if isSignedIn() &&
+        (resource.data.assignedTeamId == null || isCoachOfTeam(resource.data.assignedTeamId)) &&
+        (request.resource.data.assignedTeamId == null || isCoachOfTeam(request.resource.data.assignedTeamId)) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId', 'assignedTeamId', 'status', 'mountLocation', 'laterality', 'updatedAt']);
       allow create: if false; // no device-provisioning UI this phase
       allow delete: if false;
     }
@@ -167,13 +200,41 @@ service cloud.firestore {
       }
     }
 
+    // ---- plannedSessions/{plannedSessionId} -------------------------------
+    // Added Phase 13 (§5's Sessions architecture) — a coach-scheduled
+    // training/match slot, distinct from the laptop-authored
+    // `sessions/{sessionId}` (§1.8), which represents a real capture and
+    // remains laptop-only. Created exclusively by `createPlannedSession`
+    // (a Coach-callable Cloud Function, not the ingestion principal) —
+    // the frontend "Create Session" UI never writes here directly.
+    match /plannedSessions/{plannedSessionId} {
+      allow read: if isSignedIn() &&
+        (isCoachOfTeam(resource.data.teamId) || isMemberOfTeam(resource.data.teamId));
+      allow write: if false; // Cloud Function only
+    }
+
+    // ---- _rateLimits/{principalUid} ----------------------------------------
+    // Added Phase 13 (§10) — per-principal call counters used by
+    // `ingestLiveTick`/`createPlannedSession`. Never client-readable or
+    // client-writable; exists purely for Cloud Functions' own Admin-SDK
+    // bookkeeping.
+    match /_rateLimits/{principalUid} {
+      allow read, write: if false;
+    }
+
     // ---- alerts/{alertId} -------------------------------------------------
     match /alerts/{alertId} {
       allow read: if isSignedIn() &&
         (resource.data.playerId == request.auth.uid || isCoachOfTeam(resource.data.teamId));
       allow create: if false; // Cloud Function only
+      // Phase 13 hardening: `acknowledgedBy` must equal the caller — a
+      // coach could previously stamp a different coach's uid as the
+      // acknowledger (data-integrity gap, not an access-control one,
+      // since the write itself was already gated to coaches of this
+      // team).
       allow update: if isCoachOfTeam(resource.data.teamId) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acknowledged', 'acknowledgedBy', 'acknowledgedAt']);
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acknowledged', 'acknowledgedBy', 'acknowledgedAt']) &&
+        (!('acknowledgedBy' in request.resource.data) || request.resource.data.acknowledgedBy == request.auth.uid);
       allow delete: if false;
     }
 

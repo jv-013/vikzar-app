@@ -8,17 +8,21 @@ enum NotificationCategory {
   reportReady,
   sessionSummary,
   teamInvite,
+  sessionScheduled,
   system;
 
   /// The exact string stored in Firestore's `type` field — snake_case,
   /// per BACKEND_SPECIFICATION.md §1.6, unlike this codebase's usual
   /// `.name` convention (camelCase Dart enum names don't match this
   /// schema's existing snake_case values, which predate this revision).
+  /// `sessionScheduled` is additive (Phase 13 §5) — a coach's
+  /// `createPlannedSession` call notifies the team's players.
   String get firestoreKey => switch (this) {
     NotificationCategory.alert => 'alert',
     NotificationCategory.reportReady => 'report_ready',
     NotificationCategory.sessionSummary => 'session_summary',
     NotificationCategory.teamInvite => 'team_invite',
+    NotificationCategory.sessionScheduled => 'session_scheduled',
     NotificationCategory.system => 'system',
   };
 

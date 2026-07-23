@@ -15,6 +15,7 @@ import '../../../../shared/models/workspace_type.dart';
 import '../../../../shared/providers/current_app_user_provider.dart';
 import '../../../../shared/widgets/fade_scale_in.dart';
 import '../widgets/edit_profile_sheet.dart';
+import '../widgets/workspace_switch_sheet.dart';
 
 final appVersionProvider = FutureProvider<String>((ref) async {
   final info = await PackageInfo.fromPlatform();
@@ -101,6 +102,20 @@ class ProfileScreen extends ConsumerWidget {
               else ...[
                 const VikzarSectionHeader('About You'),
                 ..._coachAboutRows(ref),
+              ],
+              // Phase 13 §4/§5 — a "Switch Workspace" row surfaced
+              // directly on the Profile screen itself (previously only
+              // reachable via the top-bar ProfileBadge sheet), shown
+              // only for a dual-workspace account — a single-workspace
+              // account has nothing to switch to.
+              if ((user?.workspaces.held.length ?? 0) > 1) ...[
+                const VikzarSectionHeader('Workspace'),
+                VikzarListRow(
+                  leading: Icon(Symbols.swap_horiz, color: theme.colorScheme.secondary),
+                  title: 'Switch Workspace',
+                  subtitle: 'Currently: ${workspace.label}',
+                  onTap: () => WorkspaceSwitchSheet.show(context),
+                ),
               ],
               const VikzarSectionHeader('Connected Pod'),
               VikzarListRow(

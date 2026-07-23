@@ -18,6 +18,7 @@ import '../features/onboarding/presentation/screens/splash_screen.dart';
 import '../features/player_home/presentation/screens/player_home_screen.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/screens/settings_screen.dart';
+import '../features/sessions/presentation/screens/coach_sessions_screen.dart';
 import '../features/sessions/presentation/screens/player_activity_screen.dart';
 import '../features/team/presentation/screens/player_detail_screen.dart';
 import '../features/team/presentation/screens/team_screen.dart';
@@ -177,6 +178,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
+      // Phase 13 §2/§5 — 4 branches (Dashboard/Players/Sessions/Profile),
+      // remapped from the prior 5 (Home/Live/Team/Alerts/Profile). Live
+      // dropped (was 100% ComingSoonScreen placeholder). Alerts is no
+      // longer a standalone tab, but AlertsScreen/its controller stay —
+      // reached by pushing AppRoute.coachAlertsPath from the Dashboard's
+      // Active Alerts card, per AppRoute.coachAlertsPath's own route
+      // registration below (outside the shell, like Player Detail).
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             AppShellScaffold(workspace: WorkspaceType.coach, navigationShell: navigationShell),
@@ -185,7 +193,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: AppRoute.homePath(WorkspaceType.coach),
-                name: 'coach-home',
+                name: 'coach-dashboard',
                 builder: (context, state) => const CoachHomeScreen(),
               ),
             ],
@@ -193,18 +201,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: AppRoute.coachLivePath,
-                name: 'coach-live',
-                builder: (context, state) =>
-                    const ComingSoonScreen(title: 'Live Team Monitoring'),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
                 path: AppRoute.coachTeamPath,
-                name: 'coach-team',
+                name: 'coach-players',
                 builder: (context, state) => const TeamScreen(),
               ),
             ],
@@ -212,9 +210,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: AppRoute.coachAlertsPath,
-                name: 'coach-alerts',
-                builder: (context, state) => const AlertsScreen(),
+                path: AppRoute.coachSessionsPath,
+                name: 'coach-sessions',
+                builder: (context, state) => const CoachSessionsScreen(),
               ),
             ],
           ),
@@ -265,6 +263,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'coach-team-player-detail',
         builder: (context, state) =>
             PlayerDetailScreen(uid: state.pathParameters['uid']!),
+      ),
+      // Phase 13 §2/§5 — Alerts is no longer a shell branch/bottom-nav
+      // tab, but the real screen is preserved, pushed from the
+      // Dashboard's Active Alerts card, the same "pushed from within the
+      // subtree, not a tab" pattern as Player Detail above.
+      GoRoute(
+        path: AppRoute.coachAlertsPath,
+        name: 'coach-alerts',
+        builder: (context, state) => const AlertsScreen(),
       ),
     ],
   );
@@ -336,11 +343,15 @@ abstract final class OnboardingRoute {
 }
 
 /// Path helpers for the app shell subtree, `/{workspace}/**` — added
-/// Phase 7. [playerTimelinePath]/[playerHistoryPath]/[coachLivePath]/
-/// [coachTeamPath]/[coachAlertsPath] are workspace-specific bottom-nav
+/// Phase 7. [playerTimelinePath]/[playerHistoryPath]/[coachTeamPath]/
+/// [coachSessionsPath]/[coachAlertsPath] are workspace-specific
 /// destinations (their names differ per workspace, unlike [homePath]/
 /// [profilePath]/[settingsPath]/[notificationsPath], which every
-/// workspace has an equivalent of).
+/// workspace has an equivalent of). [coachTeamPath] is now the
+/// "Players" tab's path — the constant name is unchanged since the
+/// underlying route/screen didn't move, only its nav label (Phase 13
+/// §2/§5). [coachAlertsPath] is no longer a bottom-nav tab (pushed from
+/// the Dashboard instead) but keeps its own path/route registration.
 abstract final class AppRoute {
   static String subtreePrefix(WorkspaceType workspace) =>
       '/${workspace.firestoreKey}/';
@@ -349,8 +360,8 @@ abstract final class AppRoute {
 
   static const String playerTimelinePath = '/player/timeline';
   static const String playerHistoryPath = '/player/history';
-  static const String coachLivePath = '/coach/live';
   static const String coachTeamPath = '/coach/team';
+  static const String coachSessionsPath = '/coach/sessions';
   static const String coachAlertsPath = '/coach/alerts';
 
   static String profilePath(WorkspaceType workspace) =>

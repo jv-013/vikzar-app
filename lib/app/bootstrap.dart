@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../firebase_options.dart';
+import '../services/firebase/app_check_service.dart';
 import '../services/local_storage/shared_preferences_provider.dart';
 import 'app.dart';
 
@@ -37,6 +38,9 @@ Future<void> bootstrap() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    // Phase 13 §9 — see app_check_service.dart for exactly what this
+    // does and does not do yet (not yet enforced anywhere).
+    await activateAppCheck();
   } catch (error, stackTrace) {
     // Guards against genuine transient/environment failures (e.g. no
     // network on first launch, a platform's native config file not yet
