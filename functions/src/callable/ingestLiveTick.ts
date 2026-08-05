@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { Timestamp } from "firebase-admin/firestore";
+import * as logger from "firebase-functions/logger";
 import { db } from "../lib/admin";
 import { requireIngestionPrincipal, requireTeamInScope } from "../lib/ingestionAuth";
 import { enforceRateLimit } from "../lib/rateLimit";
@@ -81,6 +82,11 @@ export const ingestLiveTick = onCall(async (request) => {
     if (currentSequence != null && payload.sequenceNumber <= currentSequence) {
       // A tick that has already been superseded — write-idempotent no-op,
       // not an error: the laptop's offline buffer may redeliver.
+      logger.info("ingest_live_tick_stale_sequence_skipped", {
+        sessionId: payload.sessionId,
+        sequenceNumber: payload.sequenceNumber,
+        currentSequence,
+      });
       return;
     }
 
@@ -120,5 +126,9 @@ export const ingestLiveTick = onCall(async (request) => {
     }
   });
 
+  logger.info("ingest_live_tick_succeeded", {
+    sessionId: payload.sessionId,
+    sequenceNumber: payload.sequenceNumber,
+  });
   return { sessionId: payload.sessionId, sequenceNumber: payload.sequenceNumber };
 });

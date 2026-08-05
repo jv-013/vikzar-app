@@ -27,6 +27,21 @@ export { submitReport } from "./callable/submitReport";
 export { createPlannedSession } from "./callable/createPlannedSession";
 export { approveCoachRequest } from "./callable/approveCoachRequest";
 
+// Callable — Team/Invite backend (Phase 15). Every team-membership write
+// (create a team, generate an invite code, redeem one as a player, join
+// an existing team as a co-coach) now runs here instead of the Flutter
+// client writing `teams`/`teams/{id}/members` directly.
+export { createTeam } from "./callable/createTeam";
+export { createTeamInvite } from "./callable/createTeamInvite";
+export { joinTeamWithInvite } from "./callable/joinTeamWithInvite";
+export { joinTeamAsCoach } from "./callable/joinTeamAsCoach";
+
+// Callable — RAZ (Vikzar's Football Operating System), invoked by any
+// signed-in Player/Coach. Builds its own context from real Firestore
+// data via RazContext rather than trusting a client-supplied assessment.
+export { razAsk } from "./callable/razAsk";
+export { razDailyBrief } from "./callable/razDailyBrief";
+
 // Firestore-triggered.
 export { fanOutLiveMonitoring } from "./triggers/fanOutLiveMonitoring";
 export { onSessionCompleted } from "./triggers/onSessionCompleted";

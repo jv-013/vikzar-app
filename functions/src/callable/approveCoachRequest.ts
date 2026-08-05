@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { Timestamp } from "firebase-admin/firestore";
+import * as logger from "firebase-functions/logger";
 import { db } from "../lib/admin";
 import { requireAdminPrincipal } from "../lib/adminAuth";
 import { requireExactShape, requireString } from "../lib/validation";
@@ -20,6 +21,7 @@ export const approveCoachRequest = onCall(async (request) => {
   requireAdminPrincipal(request);
   requireExactShape(request.data, ["requestId"]);
   const requestId = requireString(request.data, "requestId");
+  logger.info("approve_coach_request_started", { requestId });
 
   const requestRef = db().collection("coachRequests").doc(requestId);
 
@@ -53,5 +55,6 @@ export const approveCoachRequest = onCall(async (request) => {
     });
   });
 
+  logger.info("approve_coach_request_succeeded", { requestId });
   return { requestId };
 });

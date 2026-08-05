@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { Timestamp } from "firebase-admin/firestore";
+import * as logger from "firebase-functions/logger";
 import { db } from "../lib/admin";
 import { requireIngestionPrincipal, requireTeamInScope } from "../lib/ingestionAuth";
 import { parseCompleteSessionPayload } from "../contracts/types";
@@ -46,5 +47,6 @@ export const completeSession = onCall(async (request) => {
     updatedAt: Timestamp.now(),
   });
 
+  logger.info("complete_session_succeeded", { sessionId: payload.sessionId, status: payload.status });
   return { sessionId: payload.sessionId, status: payload.status };
 });

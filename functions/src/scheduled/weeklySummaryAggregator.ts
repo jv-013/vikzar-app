@@ -1,6 +1,8 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { Timestamp } from "firebase-admin/firestore";
+import * as logger from "firebase-functions/logger";
 import { db } from "../lib/admin";
+import { chunkedBatchWrite } from "../lib/firestoreBatch";
 
 const TERMINAL_STATUSES = ["completed", "completed_with_gaps", "aborted"];
 
@@ -26,7 +28,10 @@ export const weeklySummaryAggregator = onSchedule(
       .where("endedAt", ">=", periodStart)
       .where("endedAt", "<", periodEnd)
       .get();
-    if (sessions.empty) return;
+    if (sessions.empty) {
+      logger.info("weekly_summary_aggregator_no_sessions");
+      return;
+    }
 
     const byPlayer = new Map<string, { teamId?: string; orgId?: string; sessions: FirebaseFirestore.DocumentData[] }>();
     for (const doc of sessions.docs) {
@@ -41,8 +46,11 @@ export const weeklySummaryAggregator = onSchedule(
       byPlayer.set(playerId, entry);
     }
 
-    const batch = db().batch();
-    for (const [playerId, entry] of byPlayer) {
+    // Chunked, not a single `WriteBatch` — Firestore hard-caps a batch at
+    // 500 operations, and `byPlayer` grows with weekly *platform-wide*
+    // active-player count, not anything per-user-bounded. Matches
+    // `writeNotifications`/`deviceHeartbeatMonitor`'s existing pattern.
+    await chunkedBatchWrite(Array.from(byPlayer.entries()), (batch, [playerId, entry]) => {
       const summaryMetricsList = entry.sessions
         .map((s) => s["summaryMetrics"] as Record<string, unknown> | undefined)
         .filter((m): m is Record<string, unknown> => m != null);
@@ -73,8 +81,8 @@ export const weeklySummaryAggregator = onSchedule(
         },
         status: "final",
       });
-    }
-    await batch.commit();
+    });
+    logger.info("weekly_summary_aggregator_completed", { reportCount: byPlayer.size });
   }
 );
 

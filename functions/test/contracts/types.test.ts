@@ -6,6 +6,8 @@ import {
   parseSubmitAlertPayload,
   parseSubmitReportPayload,
   parseCreatePlannedSessionPayload,
+  parseRazAskPayload,
+  parseRazDailyBriefPayload,
 } from "../../src/contracts/types";
 
 // Example payloads mirror BACKEND_SPECIFICATION.md §21's own JSON examples exactly.
@@ -369,6 +371,66 @@ describe("parseCreatePlannedSessionPayload", () => {
 
   it("rejects an unknown top-level field (Phase 13 §8)", () => {
     expect(() => parseCreatePlannedSessionPayload({ ...valid, evilField: "x" })).toThrow(
+      HttpsError
+    );
+  });
+});
+
+// RAZ, Vikzar's Football Operating System.
+
+describe("parseRazAskPayload", () => {
+  const valid = { audience: "player", question: "How did I train today?", history: [] };
+
+  it("parses a minimal valid payload with no history", () => {
+    const result = parseRazAskPayload({ audience: "player", question: "How did I train today?" });
+    expect(result.audience).toBe("player");
+    expect(result.question).toBe("How did I train today?");
+    expect(result.history).toEqual([]);
+  });
+
+  it("parses history turns", () => {
+    const result = parseRazAskPayload({
+      ...valid,
+      history: [{ question: "How did I train today?", answer: "Solid session." }],
+    });
+    expect(result.history).toHaveLength(1);
+    expect(result.history[0]?.answer).toBe("Solid session.");
+  });
+
+  it("rejects an invalid audience", () => {
+    expect(() => parseRazAskPayload({ ...valid, audience: "admin" })).toThrow(HttpsError);
+  });
+
+  it("rejects an empty question", () => {
+    expect(() => parseRazAskPayload({ ...valid, question: "" })).toThrow(HttpsError);
+  });
+
+  it("rejects more than 10 history turns", () => {
+    const history = Array.from({ length: 11 }, () => ({ question: "q", answer: "a" }));
+    expect(() => parseRazAskPayload({ ...valid, history })).toThrow(HttpsError);
+  });
+
+  it("rejects a history turn with an unknown field", () => {
+    const history = [{ question: "q", answer: "a", evilField: "x" }];
+    expect(() => parseRazAskPayload({ ...valid, history })).toThrow(HttpsError);
+  });
+
+  it("rejects an unknown top-level field", () => {
+    expect(() => parseRazAskPayload({ ...valid, evilField: "x" })).toThrow(HttpsError);
+  });
+});
+
+describe("parseRazDailyBriefPayload", () => {
+  it("parses a valid payload", () => {
+    expect(parseRazDailyBriefPayload({ audience: "coach" }).audience).toBe("coach");
+  });
+
+  it("rejects an invalid audience", () => {
+    expect(() => parseRazDailyBriefPayload({ audience: "referee" })).toThrow(HttpsError);
+  });
+
+  it("rejects an unknown top-level field", () => {
+    expect(() => parseRazDailyBriefPayload({ audience: "player", evilField: "x" })).toThrow(
       HttpsError
     );
   });

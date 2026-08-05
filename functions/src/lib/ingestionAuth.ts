@@ -1,4 +1,5 @@
 import { HttpsError, CallableRequest } from "firebase-functions/v2/https";
+import { db } from "./admin";
 
 /**
  * BACKEND_SPECIFICATION.md §3 — the Laptop ETL/ML Pipeline authenticates as
@@ -87,4 +88,57 @@ export function requireOrgInScope(
       `Ingestion principal is not authorized for orgId "${orgId}".`
     );
   }
+}
+
+/**
+ * Verifies the caller is a signed-in end user (not an ingestion
+ * principal — see `requireIngestionPrincipal` for that). Every plain
+ * user-facing Callable (`createTeam`, `joinTeamAsCoach`,
+ * `joinTeamWithInvite`, `razAsk`, `razDailyBrief`) had this identical
+ * check inlined separately; factored out here once so there is exactly
+ * one place that decides what "signed in" means for this trust boundary.
+ */
+export function requireSignedIn(request: CallableRequest<unknown>): string {
+  const uid = request.auth?.uid;
+  if (uid == null) {
+    throw new HttpsError("unauthenticated", "This function requires a signed-in caller.");
+  }
+  return uid;
+}
+
+/**
+ * Resolves a laptop-ingestion payload's session-scope: fetches
+ * `sessions/{sessionId}`, verifies it exists, verifies the ingestion
+ * principal is authorized for its `teamId`, and rejects a payload
+ * `teamId` that doesn't match the session's own recorded one. Shared by
+ * `submitAlert`/`submitReport`, which had byte-identical inline copies
+ * of this block.
+ *
+ * `ingestLiveTick` deliberately does **not** use this helper — it reads
+ * the session and its live-tick doc together in one `Promise.all` inside
+ * its own transaction and additionally checks the session is still
+ * `"live"` before this scope check applies; folding it into this
+ * single-purpose helper would either lose that parallel read or force an
+ * extra shape (a live-status check parameter) onto the two callers that
+ * don't need it. Its scope check stays inline, matching this function's
+ * logic exactly.
+ */
+export async function resolveSessionScope(
+  claims: IngestionClaims,
+  sessionId: string,
+  payloadTeamId: string | null | undefined
+): Promise<{ sessionTeamId: string | undefined }> {
+  const sessionSnap = await db().collection("sessions").doc(sessionId).get();
+  if (!sessionSnap.exists) {
+    throw new HttpsError("failed-precondition", `sessions/${sessionId} does not exist.`);
+  }
+  const sessionTeamId = sessionSnap.data()?.["teamId"] as string | undefined;
+  requireTeamInScope(claims, sessionTeamId ?? null);
+  if (payloadTeamId != null && payloadTeamId !== sessionTeamId) {
+    throw new HttpsError(
+      "invalid-argument",
+      `"teamId" does not match sessions/${sessionId}'s recorded team.`
+    );
+  }
+  return { sessionTeamId };
 }

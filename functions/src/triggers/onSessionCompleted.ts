@@ -1,7 +1,9 @@
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { Timestamp, FieldValue } from "firebase-admin/firestore";
+import * as logger from "firebase-functions/logger";
 import { db } from "../lib/admin";
 import { coachUidsForTeam, writeNotifications, NotificationInput } from "../lib/notifications";
+import { withEventIdempotency } from "../lib/idempotency";
 
 const TERMINAL_STATUSES = new Set(["completed", "completed_with_gaps", "aborted"]);
 
@@ -22,22 +24,27 @@ export const onSessionCompleted = onDocumentUpdated("sessions/{sessionId}", asyn
   const isTerminal = TERMINAL_STATUSES.has(after["status"] as string);
   if (wasTerminal || !isTerminal) return; // only fire on the transition itself
 
-  const sessionId = event.params.sessionId;
-  const playerId = after["playerId"] as string;
-  const teamId = after["teamId"] as string | undefined;
-  const summaryMetrics = after["summaryMetrics"] as Record<string, unknown> | undefined;
+  // `careerStats`'s FieldValue.increment() below would double-count on a
+  // Firestore at-least-once redelivery of this same event — guarded here.
+  await withEventIdempotency(event.id, async () => {
+    const sessionId = event.params.sessionId;
+    const playerId = after["playerId"] as string;
+    const teamId = after["teamId"] as string | undefined;
+    const summaryMetrics = after["summaryMetrics"] as Record<string, unknown> | undefined;
 
-  const tasks: Promise<unknown>[] = [updateCareerStats(playerId, after)];
+    const tasks: Promise<unknown>[] = [updateCareerStats(playerId, after)];
 
-  if (teamId != null) {
-    tasks.push(
-      db().collection("teams").doc(teamId).collection("liveMonitoring").doc(playerId).delete()
-    );
-  }
+    if (teamId != null) {
+      tasks.push(
+        db().collection("teams").doc(teamId).collection("liveMonitoring").doc(playerId).delete()
+      );
+    }
 
-  tasks.push(dispatchSessionSummaryNotification({ sessionId, playerId, teamId, summaryMetrics }));
+    tasks.push(dispatchSessionSummaryNotification({ sessionId, playerId, teamId, summaryMetrics }));
 
-  await Promise.all(tasks);
+    await Promise.all(tasks);
+    logger.info("on_session_completed_processed", { sessionId, playerId });
+  });
 });
 
 async function updateCareerStats(playerId: string, session: Record<string, unknown>): Promise<void> {

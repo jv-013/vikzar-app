@@ -440,16 +440,165 @@ export interface CreatePlannedSessionPayload {
   type: SessionType;
   scheduledAt: Date;
   notes?: string;
+  // Additive, Phase 15 — the Create Session sheet's full field set.
+  durationMinutes?: number;
+  location?: string;
+  playerIds?: string[];
 }
 
+const MAX_DURATION_MINUTES = 24 * 60;
+const MAX_SELECTED_PLAYERS = 200;
+
 export function parseCreatePlannedSessionPayload(data: unknown): CreatePlannedSessionPayload {
-  requireExactShape(data, ["teamId", "title", "type", "scheduledAt", "notes"]);
+  requireExactShape(data, [
+    "teamId", "title", "type", "scheduledAt", "notes",
+    "durationMinutes", "location", "playerIds",
+  ]);
+  const record = data as Record<string, unknown>;
+  const playerIdsRaw = record["playerIds"];
+  if (
+    playerIdsRaw != null &&
+    (!Array.isArray(playerIdsRaw) ||
+      playerIdsRaw.length > MAX_SELECTED_PLAYERS ||
+      !playerIdsRaw.every((v) => typeof v === "string" && v.length > 0))
+  ) {
+    fail(`"playerIds", if present, must be an array of at most ${MAX_SELECTED_PLAYERS} non-empty strings.`);
+  }
   return {
     teamId: requireString(data, "teamId"),
     title: requireBoundedString(data, "title", MAX_SHORT_TEXT_LENGTH),
     type: requireEnum(data, "type", SESSION_TYPES),
     scheduledAt: requireIsoTimestamp(data, "scheduledAt"),
     notes: optionalBoundedString(data, "notes", MAX_TEXT_LENGTH),
+    durationMinutes: optionalNumberInRange(data, "durationMinutes", 1, MAX_DURATION_MINUTES),
+    location: optionalBoundedString(data, "location", MAX_SHORT_TEXT_LENGTH),
+    playerIds: playerIdsRaw as string[] | undefined,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// createTeam / createTeamInvite / joinTeamWithInvite / joinTeamAsCoach —
+// Phase 15. The frontend previously wrote `teams`/`teams/{id}/members`
+// directly from the client (ADR-051's MVP self-service model), including
+// using a team's own document ID as its "invite code" — anyone who ever
+// saw a teamId could self-add as a co-coach. This replaces every one of
+// those writes with a Callable that derives the caller's identity from
+// `request.auth.uid` and never trusts a client-supplied role/teamId.
+// ---------------------------------------------------------------------------
+
+export interface CreateTeamPayload {
+  name: string;
+  ageGroup?: string;
+}
+
+export function parseCreateTeamPayload(data: unknown): CreateTeamPayload {
+  requireExactShape(data, ["name", "ageGroup"]);
+  return {
+    name: requireBoundedString(data, "name", MAX_SHORT_TEXT_LENGTH),
+    ageGroup: optionalBoundedString(data, "ageGroup", MAX_SHORT_TEXT_LENGTH),
+  };
+}
+
+export interface CreateTeamInvitePayload {
+  teamId: string;
+  regenerate?: boolean;
+}
+
+export function parseCreateTeamInvitePayload(data: unknown): CreateTeamInvitePayload {
+  requireExactShape(data, ["teamId", "regenerate"]);
+  const record = data as Record<string, unknown>;
+  const regenerate = record["regenerate"];
+  if (regenerate != null && typeof regenerate !== "boolean") {
+    fail('"regenerate", if present, must be a boolean.');
+  }
+  return {
+    teamId: requireString(data, "teamId"),
+    regenerate: regenerate as boolean | undefined,
+  };
+}
+
+export interface JoinTeamWithInvitePayload {
+  inviteCode: string;
+}
+
+export function parseJoinTeamWithInvitePayload(data: unknown): JoinTeamWithInvitePayload {
+  requireExactShape(data, ["inviteCode"]);
+  return {
+    inviteCode: requireBoundedString(data, "inviteCode", MAX_SHORT_TEXT_LENGTH),
+  };
+}
+
+export interface JoinTeamAsCoachPayload {
+  teamId: string;
+}
+
+export function parseJoinTeamAsCoachPayload(data: unknown): JoinTeamAsCoachPayload {
+  requireExactShape(data, ["teamId"]);
+  return {
+    teamId: requireString(data, "teamId"),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// razAsk / razDailyBrief — Vikzar's Football Operating System.
+// Coach-callable and Player-callable alike (real, authenticated end
+// users, never the laptop ingestion principal). `audience` only ever
+// selects which of the caller's own workspaces' context gets built
+// (`buildPlayerContext`/`buildCoachContext` both derive everything from
+// `request.auth.uid`) — it grants no access a signed-in caller wouldn't
+// already have to their own data.
+// ---------------------------------------------------------------------------
+
+export const RAZ_AUDIENCES = ["player", "coach"] as const;
+export type RazAudienceContract = (typeof RAZ_AUDIENCES)[number];
+
+const MAX_QUESTION_LENGTH = 500;
+const MAX_HISTORY_TURNS = 10;
+
+export interface RazConversationTurn {
+  question: string;
+  answer: string;
+}
+
+export interface RazAskPayload {
+  audience: RazAudienceContract;
+  question: string;
+  history: RazConversationTurn[];
+}
+
+function parseHistory(data: unknown): RazConversationTurn[] {
+  const record = data as Record<string, unknown>;
+  const raw = record["history"];
+  if (raw == null) return [];
+  if (!Array.isArray(raw) || raw.length > MAX_HISTORY_TURNS) {
+    fail(`"history", if present, must be an array of at most ${MAX_HISTORY_TURNS} turns.`);
+  }
+  return (raw as unknown[]).map((entry) => {
+    requireExactShape(entry, ["question", "answer"]);
+    return {
+      question: requireBoundedString(entry, "question", MAX_QUESTION_LENGTH),
+      answer: requireBoundedString(entry, "answer", MAX_TEXT_LENGTH),
+    };
+  });
+}
+
+export function parseRazAskPayload(data: unknown): RazAskPayload {
+  requireExactShape(data, ["audience", "question", "history"]);
+  return {
+    audience: requireEnum(data, "audience", RAZ_AUDIENCES),
+    question: requireBoundedString(data, "question", MAX_QUESTION_LENGTH),
+    history: parseHistory(data),
+  };
+}
+
+export interface RazDailyBriefPayload {
+  audience: RazAudienceContract;
+}
+
+export function parseRazDailyBriefPayload(data: unknown): RazDailyBriefPayload {
+  requireExactShape(data, ["audience"]);
+  return {
+    audience: requireEnum(data, "audience", RAZ_AUDIENCES),
   };
 }
 

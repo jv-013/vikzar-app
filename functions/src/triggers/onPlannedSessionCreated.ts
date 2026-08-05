@@ -1,6 +1,8 @@
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import * as logger from "firebase-functions/logger";
 import { db } from "../lib/admin";
 import { writeNotifications, NotificationInput } from "../lib/notifications";
+import { withEventIdempotency } from "../lib/idempotency";
 
 /**
  * Phase 13 §5 — reacts to `plannedSessions/{plannedSessionId}` creation
@@ -17,26 +19,35 @@ export const onPlannedSessionCreated = onDocumentCreated(
     const plannedSession = event.data?.data();
     if (!plannedSession) return;
 
-    const plannedSessionId = event.params.plannedSessionId;
-    const teamId = plannedSession["teamId"] as string;
-    const title = plannedSession["title"] as string;
+    // Same double-notify risk on redelivery as `onAlertCreated.ts` — see
+    // its identical comment.
+    await withEventIdempotency(event.id, async () => {
+      const plannedSessionId = event.params.plannedSessionId;
+      const teamId = plannedSession["teamId"] as string;
+      const title = plannedSession["title"] as string;
 
-    const membersSnap = await db()
-      .collection("teams")
-      .doc(teamId)
-      .collection("members")
-      .where("status", "==", "active")
-      .get();
-    if (membersSnap.empty) return;
+      const membersSnap = await db()
+        .collection("teams")
+        .doc(teamId)
+        .collection("members")
+        .where("status", "==", "active")
+        .get();
+      if (membersSnap.empty) return;
 
-    const notifications: NotificationInput[] = membersSnap.docs.map((doc) => ({
-      uid: doc.id,
-      type: "session_scheduled",
-      title: "New session scheduled",
-      body: `"${title}" has been scheduled for your team.`,
-      relatedPlannedSessionId: plannedSessionId,
-    }));
+      const notifications: NotificationInput[] = membersSnap.docs.map((doc) => ({
+        uid: doc.id,
+        type: "session_scheduled",
+        title: "New session scheduled",
+        body: `"${title}" has been scheduled for your team.`,
+        relatedPlannedSessionId: plannedSessionId,
+      }));
 
-    await writeNotifications(notifications);
+      await writeNotifications(notifications);
+      logger.info("on_planned_session_created_notified", {
+        plannedSessionId,
+        teamId,
+        recipientCount: notifications.length,
+      });
+    });
   }
 );

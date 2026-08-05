@@ -1,5 +1,6 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "./admin";
+import { chunkedBatchWrite } from "./firestoreBatch";
 
 /**
  * BACKEND_SPECIFICATION.md §1.6 `type` enum. `session_scheduled` is
@@ -23,10 +24,17 @@ export interface NotificationInput {
   relatedReportId?: string;
   relatedSessionId?: string;
   relatedPlannedSessionId?: string;
+  /**
+   * RAZ's own semantic flavor of *why* this notification is what it is
+   * (`recovery`/`coach`/`session`/`hardware`/`movement` — see
+   * `RazNotificationCategory` in `razNotificationEngine.ts`), distinct
+   * from `type` above (the structural/routing category every
+   * notification has). Only alert/report-sourced notifications carry
+   * one; `session_scheduled`/`session_summary` notifications simply omit
+   * it.
+   */
+  razCategory?: string;
 }
-
-/** Firestore's own hard limit on operations per batch. */
-const MAX_BATCH_SIZE = 500;
 
 /**
  * Writes one `users/{uid}/notifications/{notificationId}` document per
@@ -35,39 +43,33 @@ const MAX_BATCH_SIZE = 500;
  * same person can qualify as a recipient for more than one reason (e.g. a
  * coach of a team that is also, separately, the alert's own player).
  *
- * Chunks into multiple batches of at most `MAX_BATCH_SIZE` — a single
- * `WriteBatch` throws past 500 operations, which a large team roster
- * (`onPlannedSessionCreated`'s fan-out, one notification per active
- * member) could realistically exceed. Chunks commit sequentially, not in
- * parallel, to stay well within per-second write-rate limits on any one
- * shard for teams with unusually large rosters.
+ * Chunked via `chunkedBatchWrite` — a single `WriteBatch` throws past 500
+ * operations, which a large team roster (`onPlannedSessionCreated`'s
+ * fan-out, one notification per active member) could realistically
+ * exceed.
  */
 export async function writeNotifications(inputs: NotificationInput[]): Promise<void> {
   if (inputs.length === 0) return;
   const now = Timestamp.now();
 
-  for (let start = 0; start < inputs.length; start += MAX_BATCH_SIZE) {
-    const chunk = inputs.slice(start, start + MAX_BATCH_SIZE);
-    const batch = db().batch();
-    for (const input of chunk) {
-      const ref = db().collection("users").doc(input.uid).collection("notifications").doc();
-      batch.set(ref, {
-        notificationId: ref.id,
-        type: input.type,
-        title: input.title,
-        body: input.body,
-        ...(input.relatedAlertId != null ? { relatedAlertId: input.relatedAlertId } : {}),
-        ...(input.relatedReportId != null ? { relatedReportId: input.relatedReportId } : {}),
-        ...(input.relatedSessionId != null ? { relatedSessionId: input.relatedSessionId } : {}),
-        ...(input.relatedPlannedSessionId != null
-          ? { relatedPlannedSessionId: input.relatedPlannedSessionId }
-          : {}),
-        read: false,
-        createdAt: now,
-      });
-    }
-    await batch.commit();
-  }
+  await chunkedBatchWrite(inputs, (batch, input) => {
+    const ref = db().collection("users").doc(input.uid).collection("notifications").doc();
+    batch.set(ref, {
+      notificationId: ref.id,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      ...(input.relatedAlertId != null ? { relatedAlertId: input.relatedAlertId } : {}),
+      ...(input.relatedReportId != null ? { relatedReportId: input.relatedReportId } : {}),
+      ...(input.relatedSessionId != null ? { relatedSessionId: input.relatedSessionId } : {}),
+      ...(input.relatedPlannedSessionId != null
+        ? { relatedPlannedSessionId: input.relatedPlannedSessionId }
+        : {}),
+      ...(input.razCategory != null ? { razCategory: input.razCategory } : {}),
+      read: false,
+      createdAt: now,
+    });
+  });
 }
 
 /** Resolves a team's coach uids — empty array if the team doesn't exist. */

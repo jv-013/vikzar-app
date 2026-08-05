@@ -17,6 +17,7 @@
     "deploy": "firebase deploy --only functions"
   },
   "dependencies": {
+    "@google/genai": "^2.13.0",
     "firebase-admin": "^12.7.0",
     "firebase-functions": "^6.3.0"
   },

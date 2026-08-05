@@ -1,11 +1,11 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { Timestamp } from "firebase-admin/firestore";
+import * as logger from "firebase-functions/logger";
 import { db } from "../lib/admin";
+import { chunkedBatchWrite } from "../lib/firestoreBatch";
 
 /** How long a device may go silent during a live session before it's considered disconnected. */
 const HEARTBEAT_TIMEOUT_MS = 60_000;
-/** Firestore's own hard limit on operations per batch — 2 writes/flagged device. */
-const MAX_BATCH_OPS = 500;
 
 /**
  * BACKEND_SPECIFICATION.md §17 — "Checks `devices.lastSeenAt` for devices
@@ -17,9 +17,12 @@ const MAX_BATCH_OPS = 500;
  * through the `submitAlert` Callable, since there is no laptop-side
  * ingestion principal call for this — the check originates in Firebase.
  */
-export const deviceHeartbeatMonitor = onSchedule("every 30 seconds", async () => {
+export const deviceHeartbeatMonitor = onSchedule("every 1 minutes", async () => {
   const liveSessions = await db().collection("sessions").where("status", "==", "live").get();
-  if (liveSessions.empty) return;
+  if (liveSessions.empty) {
+    logger.info("device_heartbeat_monitor_no_live_sessions");
+    return;
+  }
 
   const now = Date.now();
 
@@ -81,15 +84,15 @@ export const deviceHeartbeatMonitor = onSchedule("every 30 seconds", async () =>
     });
   });
 
-  // Chunked, same reasoning as lib/notifications.ts's writeNotifications —
-  // a single WriteBatch throws past 500 operations, which a mass-disconnect
-  // event across enough concurrent live sessions could reach (2 writes per
-  // flagged device).
-  for (let start = 0; start < writes.length; start += MAX_BATCH_OPS) {
-    const batch = db().batch();
-    for (const write of writes.slice(start, start + MAX_BATCH_OPS)) {
-      batch.set(write.ref, write.data, write.merge ? { merge: true } : {});
-    }
-    await batch.commit();
-  }
+  // Chunked via the same shared helper `lib/notifications.ts`'s
+  // `writeNotifications` uses — a single WriteBatch throws past 500
+  // operations, which a mass-disconnect event across enough concurrent
+  // live sessions could reach (2 writes per flagged device).
+  await chunkedBatchWrite(writes, (batch, write) => {
+    batch.set(write.ref, write.data, write.merge ? { merge: true } : {});
+  });
+  logger.info("device_heartbeat_monitor_completed", {
+    liveSessionCount: liveSessions.size,
+    devicesFlagged: writes.length / 2,
+  });
 });

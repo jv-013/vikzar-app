@@ -1,5 +1,6 @@
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { Timestamp } from "firebase-admin/firestore";
+import * as logger from "firebase-functions/logger";
 import { db } from "../lib/admin";
 
 /**
@@ -47,5 +48,6 @@ export const fanOutLiveMonitoring = onDocumentWritten(
         ...(tick["deviceBattery"] != null ? { deviceBattery: tick["deviceBattery"] } : {}),
         updatedAt: Timestamp.now(),
       });
+    logger.info("fan_out_live_monitoring_succeeded", { teamId, playerId, sessionId });
   }
 );
