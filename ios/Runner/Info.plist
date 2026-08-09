@@ -30,6 +30,19 @@
 	<string>Vikzar uses your microphone so you can talk to RAZ instead of typing.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Vikzar uses speech recognition to turn what you say to RAZ into text.</string>
+	<!-- Google Sign-in Section — REVERSED_CLIENT_ID from GoogleService-Info.plist,
+	     required by google_sign_in_ios to receive the OAuth redirect. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.295770188338-bje878vsi9skm6snbku7fmbj8183lr8n</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
