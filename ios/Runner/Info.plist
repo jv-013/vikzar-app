@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Vikzar uses your microphone so you can talk to RAZ instead of typing.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Vikzar uses speech recognition to turn what you say to RAZ into text.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

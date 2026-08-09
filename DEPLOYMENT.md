@@ -34,7 +34,37 @@ Output: `build/app/outputs/flutter-apk/app-release.apk`. Verify signing with:
 $ANDROID_HOME/build-tools/<version>/apksigner verify --print-certs build/app/outputs/flutter-apk/app-release.apk
 ```
 
-**New keystore → new SHA-1 → Google Sign-In needs one manual step.** The release keystore generated for this release has SHA-1 `6E:83:3D:FE:55:26:81:18:C6:1E:84:53:A6:73:13:B6:CA:87:24:E8`. This is **not yet registered** with the Google Cloud OAuth client backing Google Sign-In (`android/app/google-services.json`'s `oauth_client` entries currently only cover the debug keystore). Until that SHA-1 is added in Google Cloud Console → APIs & Services → Credentials (and `google-services.json` re-synced), Google Sign-In will not complete on release-signed builds — confirmed live this release (opens the picker, returns to the sign-in screen with no error). Email Link sign-in is unaffected (it doesn't depend on the app's signing certificate).
+**Google Sign-In on release builds — resolved and verified.** The release keystore's SHA-1 (`6E:83:3D:FE:55:26:81:18:C6:1E:84:53:A6:73:13:B6:CA:87:24:E8`) has been registered with the Google Cloud OAuth client. Re-sync `google-services.json` after registering a new SHA-1 with:
+```bash
+firebase apps:sdkconfig ANDROID 1:295770188338:android:c4059d4c4a09ee92dcaa2b --project vikzar-prod --out android/app/google-services.json
+```
+Confirmed live this release: fresh install of the release APK, real Google Sign-In completed, landed in an authenticated Player home screen.
+
+```bash
+flutter build appbundle --release
+```
+Output: `build/app/outputs/bundle/release/app-release.aab`, signed with the same release keystore.
+
+## iOS release build
+
+```bash
+flutter build ios --release --no-codesign
+```
+Output: `build/ios/iphoneos/Runner.app` (unsigned — see below). Requires `IPHONEOS_DEPLOYMENT_TARGET = 15.0` (already set in `Runner.xcodeproj`; Firebase's iOS SDKs reject anything lower) and `ios/Podfile`'s `platform :ios, '15.0'` line to match.
+
+**No Apple Developer Team is configured** (`DEVELOPMENT_TEAM` unset in `Runner.xcodeproj`, `CODE_SIGN_STYLE = Automatic` with nothing to resolve against). This build is real and compiles clean, but it is **not signed for distribution** — App Store/TestFlight submission needs a real Apple Developer Program Team ID and provisioning profile supplied manually; this repo will not fabricate one.
+
+**iOS Google Sign-In is not fully provisioned.** `ios/Runner/GoogleService-Info.plist` has no `CLIENT_ID`/`REVERSED_CLIENT_ID` — generate/verify the iOS OAuth client in Firebase Console and re-download the plist before Google Sign-In can be expected to work on iOS.
+
+## macOS release build
+
+```bash
+flutter build macos --release
+```
+Output: `build/macos/Build/Products/Release/vikzar.app`. Builds and runs, but is only **ad-hoc signed** (`codesign -dv` shows `flags=0x2(adhoc)`) — not notarizable or distributable outside this machine without a real Apple Developer Team, same as iOS above.
+
+## Windows release build
+**Not buildable from this repository's current environment.** `flutter build windows` requires a Windows host with Visual Studio installed; this deployment record was produced on macOS. The `windows/` project scaffold exists (`CMakeLists.txt`, `flutter/`, `runner/`) but has never been built or tested. Attempt from an actual Windows machine.
 
 ## Firestore rules / indexes / storage rules
 `firestore.rules`, `firestore.indexes.json`, `storage.rules` deploy via `firebase deploy --only firestore:rules,firestore:indexes,storage`. Not part of this release's commit — see `KNOWN_ISSUES.md`.

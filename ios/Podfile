@@ -1,5 +1,8 @@
-# Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
+# Firebase's iOS SDKs (firebase-storage, firebase-core, firebase-auth,
+# firebase-app-check, cloud-functions, cloud-firestore) require iOS 15.0
+# minimum as of this release — matches IPHONEOS_DEPLOYMENT_TARGET in
+# Runner.xcodeproj.
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
