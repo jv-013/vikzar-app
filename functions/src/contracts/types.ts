@@ -7,6 +7,7 @@ import {
   requireBoundedString,
   requireStringArray,
   requireExactShape,
+  optionalEnum,
   optionalNumberInRange,
   optionalObject,
   optionalString,
@@ -552,6 +553,10 @@ export function parseJoinTeamAsCoachPayload(data: unknown): JoinTeamAsCoachPaylo
 export const RAZ_AUDIENCES = ["player", "coach"] as const;
 export type RazAudienceContract = (typeof RAZ_AUDIENCES)[number];
 
+/** Presentation mode — see `razConversation.ts`'s `ConversationMode` for what this changes. */
+export const RAZ_MODES = ["voice", "text"] as const;
+export type RazModeContract = (typeof RAZ_MODES)[number];
+
 const MAX_QUESTION_LENGTH = 500;
 const MAX_HISTORY_TURNS = 10;
 
@@ -564,6 +569,8 @@ export interface RazAskPayload {
   audience: RazAudienceContract;
   question: string;
   history: RazConversationTurn[];
+  /** Absent means "text" — see `RAZ_MODES`. */
+  mode?: RazModeContract;
 }
 
 function parseHistory(data: unknown): RazConversationTurn[] {
@@ -583,11 +590,12 @@ function parseHistory(data: unknown): RazConversationTurn[] {
 }
 
 export function parseRazAskPayload(data: unknown): RazAskPayload {
-  requireExactShape(data, ["audience", "question", "history"]);
+  requireExactShape(data, ["audience", "question", "history", "mode"]);
   return {
     audience: requireEnum(data, "audience", RAZ_AUDIENCES),
     question: requireBoundedString(data, "question", MAX_QUESTION_LENGTH),
     history: parseHistory(data),
+    mode: optionalEnum(data, "mode", RAZ_MODES),
   };
 }
 

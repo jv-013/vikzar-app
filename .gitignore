@@ -32,6 +32,11 @@ migrate_working_dir/
 /build/
 Migrate_Working_Dir/
 
+# Cloud Functions build/tooling cache — `/build/` above only anchors the
+# repo root, not this nested one; a stray `functions/build/` (Xcode
+# SourcePackages cache, ~1.2GB) was found untracked and unignored.
+/functions/build/
+
 # Symbolication related
 app.*.symbols
 

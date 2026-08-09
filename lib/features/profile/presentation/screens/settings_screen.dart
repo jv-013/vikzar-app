@@ -6,12 +6,16 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../../design_system/components/vikzar_bottom_sheet.dart';
 import '../../../../design_system/components/vikzar_list_row.dart';
 import '../../../../design_system/components/vikzar_section_header.dart';
+import '../../../../design_system/components/vikzar_segmented_control.dart';
 import '../../../../design_system/tokens/spacing.dart';
 import '../../../../routing/app_router.dart';
 import '../../../../shared/models/workspace_type.dart';
 import '../../../../shared/widgets/fade_scale_in.dart';
 import '../../../auth/data/repositories/auth_repository_impl.dart';
 import '../../../auth/domain/models/auth_state.dart';
+import '../../../raz/data/providers/raz_speech_providers.dart';
+import '../../../raz/domain/models/raz_voice_option.dart';
+import '../../../raz/presentation/controllers/raz_voice_settings_controller.dart';
 
 /// Settings — DESIGN_SPECIFICATION.md §19.2/§19.3 (shared layout for both
 /// workspaces). **Rebuilt at Phase 9** to the product's exact minimal list:
@@ -29,6 +33,8 @@ class SettingsScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final authState = ref.watch(authStateProvider).value;
     final email = authState is Authenticated ? authState.email : null;
+    final voiceSettings = ref.watch(razVoiceSettingsControllerProvider);
+    final voiceSettingsNotifier = ref.read(razVoiceSettingsControllerProvider.notifier);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -49,6 +55,70 @@ class SettingsScreen extends ConsumerWidget {
                 title: 'Notifications',
                 subtitle: 'View your notification history',
                 onTap: () => context.push(AppRoute.notificationsPath(workspace)),
+              ),
+              const VikzarSectionHeader('Voice'),
+              VikzarListRow(
+                leading: Icon(Symbols.record_voice_over, color: theme.colorScheme.onSurface),
+                title: 'Voice',
+                subtitle: 'Talk to RAZ instead of typing',
+                trailing: Switch(
+                  value: voiceSettings.enabled,
+                  onChanged: voiceSettingsNotifier.setEnabled,
+                ),
+              ),
+              VikzarListRow(
+                leading: Icon(Symbols.mic, color: theme.colorScheme.onSurface),
+                title: '"Hey Raz"',
+                subtitle: voiceSettings.enabled
+                    ? 'Uses more battery — keeps the mic on while Vikzar is open. Off by default.'
+                    : 'Turn on Voice above to enable this',
+                trailing: Switch(
+                  value: voiceSettings.wakeWordEnabled,
+                  onChanged: voiceSettings.enabled ? voiceSettingsNotifier.setWakeWordEnabled : null,
+                ),
+                onTap: () => _showInfoSheet(
+                  context,
+                  title: '"Hey Raz"',
+                  body: 'When this is on, Vikzar keeps the microphone listening for the wake '
+                      "word using your phone's own speech recognition — the same recognition "
+                      'used when you tap the mic to talk. It only listens while Vikzar is open '
+                      "in the foreground, and switches off automatically the moment you leave "
+                      "the app or put your phone to sleep — it never listens in the background. "
+                      "Because the microphone stays active the whole time the app is open, this "
+                      "uses more battery than Push-to-Talk. Vikzar's own servers only ever see a "
+                      'question after you say "Hey Raz" and ask one — not before. This is why '
+                      'it is off by default: Push-to-Talk (tap the mic) gets you the same RAZ '
+                      'without the battery trade-off.',
+                ),
+              ),
+              const _RazVoiceSelector(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.space16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Speech speed',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Slider(
+                      value: voiceSettings.speechRate,
+                      onChanged: voiceSettingsNotifier.setSpeechRate,
+                    ),
+                    Text(
+                      'Speech volume',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Slider(
+                      value: voiceSettings.speechVolume,
+                      onChanged: voiceSettingsNotifier.setSpeechVolume,
+                    ),
+                  ],
+                ),
               ),
               const VikzarSectionHeader('Support'),
               VikzarListRow(
@@ -93,6 +163,67 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// "RAZ Voice" — Male/Female. Only ever rendered once real, installed
+/// voices with confidently-known gender exist for *both* options (see
+/// `RazVoiceOption.gender`'s own doc comment on why gender is often
+/// unknown, e.g. on stock Android) — this widget shrinks to nothing
+/// rather than ever showing a picker that doesn't map to two genuinely
+/// distinct real voices. Both options are still RAZ: same personality,
+/// same reasoning, same content — only the installed system voice
+/// speaking it differs.
+class _RazVoiceSelector extends ConsumerWidget {
+  const _RazVoiceSelector();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final voicesAsync = ref.watch(razAvailableVoicesProvider);
+    final voices = voicesAsync.value;
+    if (voices == null) return const SizedBox.shrink();
+
+    RazVoiceOption? firstOf(RazVoiceGender gender) {
+      for (final voice in voices) {
+        if (voice.gender == gender) return voice;
+      }
+      return null;
+    }
+
+    final male = firstOf(RazVoiceGender.male);
+    final female = firstOf(RazVoiceGender.female);
+    if (male == null || female == null) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final voiceSettings = ref.watch(razVoiceSettingsControllerProvider);
+    final selected = voiceSettings.voiceName == male.name
+        ? RazVoiceGender.male
+        : voiceSettings.voiceName == female.name
+        ? RazVoiceGender.female
+        : null;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.space16, vertical: SpacingTokens.space8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'RAZ Voice',
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: SpacingTokens.space8),
+          VikzarSegmentedControl<RazVoiceGender>(
+            options: const [RazVoiceGender.male, RazVoiceGender.female],
+            selected: selected,
+            labelBuilder: (gender) => gender == RazVoiceGender.male ? 'Male' : 'Female',
+            onChanged: (gender) {
+              final voice = gender == RazVoiceGender.male ? male : female;
+              ref.read(razVoiceSettingsControllerProvider.notifier).setVoiceName(voice.name);
+            },
+          ),
+        ],
       ),
     );
   }

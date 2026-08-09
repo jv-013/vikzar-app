@@ -50,4 +50,49 @@ export class GeminiProvider implements LlmProvider {
     }
     return text.trim();
   }
+
+  /**
+   * [signal]'s abort is forwarded to `@google/genai` as `config.abortSignal`
+   * — per that SDK's own doc comment, this is a client-only operation: it
+   * stops *this function* from continuing to hold the connection open and
+   * process further chunks, but does not cancel generation on Gemini's
+   * side, and usage may still be billed. Worth doing anyway — it's what
+   * stops a disconnected caller's `razAsk` invocation from running for the
+   * model's full response instead of ending promptly.
+   */
+  async *generateTextStream(messages: LlmMessage[], signal?: AbortSignal): AsyncGenerator<string> {
+    const { GoogleGenAI }: { GoogleGenAI: typeof GoogleGenAIClient } = await import(
+      "@google/genai"
+    );
+    const client = new GoogleGenAI({ apiKey: this.apiKey });
+    const systemInstruction = messages
+      .filter((m) => m.role === "system")
+      .map((m) => m.content)
+      .join("\n\n");
+    const userContent = messages
+      .filter((m) => m.role === "user")
+      .map((m) => m.content)
+      .join("\n\n");
+
+    const stream = await client.models.generateContentStream({
+      model: this.model,
+      contents: userContent,
+      config: {
+        ...(systemInstruction.length > 0 ? { systemInstruction } : {}),
+        ...(signal ? { abortSignal: signal } : {}),
+      },
+    });
+
+    let sawAnyText = false;
+    for await (const chunk of stream) {
+      const text = chunk.text;
+      if (typeof text === "string" && text.length > 0) {
+        sawAnyText = true;
+        yield text;
+      }
+    }
+    if (!sawAnyText) {
+      throw new Error("Gemini returned an empty streamed response.");
+    }
+  }
 }

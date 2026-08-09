@@ -126,6 +126,19 @@ export function requireEnum<T extends string>(
   return value as T;
 }
 
+export function optionalEnum<T extends string>(
+  data: unknown,
+  field: string,
+  allowed: readonly T[]
+): T | undefined {
+  const value = optionalString(data, field);
+  if (value == null) return undefined;
+  if (!allowed.includes(value as T)) {
+    fail(`"${field}", if present, must be one of: ${allowed.join(", ")}. Received "${value}".`);
+  }
+  return value as T;
+}
+
 export function requireStringArray(data: unknown, field: string): string[] {
   const record = data as Record<string, unknown>;
   const value = record?.[field];

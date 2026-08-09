@@ -71,12 +71,35 @@ export interface ConversationTurn {
   answer: string;
 }
 
+/**
+ * Presentation only — the reasoning behind the answer never changes
+ * between the two, only how much of it gets said. "voice" is the
+ * spoken conversational path (Push-to-Talk, Voice Mode); "text" is the
+ * typed chat thread, which can afford more detail on screen than
+ * anyone would want spoken aloud. Defaults to "text" for any caller
+ * that doesn't specify one, matching the API's behavior before this
+ * distinction existed.
+ */
+export type ConversationMode = "voice" | "text";
+
 const MAX_HISTORY_TURNS = 6;
+
+const VOICE_LENGTH_INSTRUCTION =
+  "This is a spoken reply, not text on a screen. Say one thing at a time — a sentence or " +
+  "two, never a paragraph. No lists, no markdown, nothing that only makes sense written down. " +
+  "If there's more worth saying, let the next question draw it out rather than saying " +
+  "everything at once.";
+
+const TEXT_LENGTH_INSTRUCTION =
+  "This is a typed reply the player/coach will read on screen. You can go into more detail " +
+  "than you would out loud when it's genuinely useful, but don't pad a short answer just to " +
+  "look thorough.";
 
 export function buildConversationMessages(
   reasoning: FootballReasoning,
   question: string,
-  history: ConversationTurn[]
+  history: ConversationTurn[],
+  mode: ConversationMode = "text"
 ): LlmMessage[] {
   const audience = reasoning.audience;
   const historyBlock = history
@@ -95,7 +118,8 @@ export function buildConversationMessages(
         `Current football reasoning for this ${audience}:\n${reasoningBlock(reasoning)}` +
         (historyBlock ? `\n\nEarlier in this conversation:\n${historyBlock}` : "") +
         `\n\nThe ${audience} asks: "${question}"\n\n` +
-        `Answer using only the reasoning above. If it doesn't cover what they asked, say so directly.`,
+        `Answer using only the reasoning above. If it doesn't cover what they asked, say so directly. ` +
+        (mode === "voice" ? VOICE_LENGTH_INSTRUCTION : TEXT_LENGTH_INSTRUCTION),
     },
   ];
 }

@@ -9,7 +9,11 @@ plugins {
 
 android {
     namespace = "com.vikzar.vikzar"
-    compileSdk = flutter.compileSdkVersion
+    // permission_handler_android requires compileSdk 37 — the Flutter SDK's
+    // own default (flutter.compileSdkVersion) is 36, one behind. Overridden
+    // explicitly per the exact fix Gradle's own error output recommended;
+    // compileSdk is backward-compatible and independent of minSdk/targetSdk.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

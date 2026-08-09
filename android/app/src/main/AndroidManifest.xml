@@ -1,4 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- RC1 final audit: demonstrated absent from the merged manifest —
+         speech_to_text (RAZ Push-to-Talk/Wake Word) cannot request
+         microphone access at runtime without this declared. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- RC1 final audit: demonstrated absent from the merged manifest —
+         required on Android 13+ (API 33) for the app to request
+         notification permission at all; without it, the runtime request
+         silently fails. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="vikzar"
         android:name="${applicationName}"
