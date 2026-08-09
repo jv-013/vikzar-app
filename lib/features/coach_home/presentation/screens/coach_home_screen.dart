@@ -17,6 +17,7 @@ import '../../../notifications/presentation/controllers/notifications_controller
 import '../../../sessions/domain/models/planned_session.dart';
 import '../../../sessions/presentation/controllers/planned_sessions_controller.dart';
 import '../../../team/presentation/controllers/team_roster_controller.dart';
+import '../../../team/presentation/widgets/invite_players_dialog.dart';
 import '../controllers/squad_summary_controller.dart';
 
 /// Coach Dashboard — DESIGN_SPECIFICATION.md §19.3, **rebuilt at Phase 9**,
@@ -339,6 +340,10 @@ class _ActiveAlertsCard extends ConsumerWidget {
   }
 }
 
+/// "Create Team" was removed from this row (Phase 15 dead-code pass): it
+/// only ever showed a "coming in a future phase" snackbar, and a coach
+/// reaching Coach Home always already has a team — onboarding requires
+/// creating or joining one before Home is reachable at all.
 class _QuickActions extends StatelessWidget {
   const _QuickActions({required this.teamId});
 
@@ -351,12 +356,7 @@ class _QuickActions extends StatelessWidget {
       runSpacing: SpacingTokens.space8,
       children: [
         TextButton.icon(
-          onPressed: () => _showComingSoonSnackBar(context, 'Create Team'),
-          icon: const Icon(Symbols.add_circle),
-          label: const Text('Create Team'),
-        ),
-        TextButton.icon(
-          onPressed: () => _showInvitePlayerSheet(context, teamId),
+          onPressed: teamId == null ? null : () => showInvitePlayersDialog(context, teamId!),
           icon: const Icon(Symbols.person_add),
           label: const Text('Invite Player'),
         ),
@@ -373,39 +373,4 @@ class _QuickActions extends StatelessWidget {
       ],
     );
   }
-}
-
-void _showComingSoonSnackBar(BuildContext context, String action) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('$action is coming in a future phase.')),
-  );
-}
-
-void _showInvitePlayerSheet(BuildContext context, String? teamId) {
-  showDialog<void>(
-    context: context,
-    builder: (context) {
-      final theme = Theme.of(context);
-      return AlertDialog(
-        title: const Text('Invite Player'),
-        content: teamId == null
-            ? const Text('Create a team first — then its Team ID becomes the invite code.')
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Share this Team ID so a player can join your team:',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: SpacingTokens.space12),
-                  SelectableText(teamId, style: theme.textTheme.titleMedium),
-                ],
-              ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Done')),
-        ],
-      );
-    },
-  );
 }

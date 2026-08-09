@@ -90,21 +90,15 @@ class OnboardingCompletionController extends Notifier<OnboardingCompletionState>
     final String teamId;
     switch (data.team.mode) {
       case TeamSetupMode.create:
-        switch (await teamRepository.createTeam(
-          coachUid: uid,
-          name: data.team.teamName.trim(),
-        )) {
-          case Success<String>(value: final id):
-            teamId = id;
-          case ResultFailure<String>(failure: final failure):
+        switch (await teamRepository.createTeam(name: data.team.teamName.trim())) {
+          case Success<({String teamId, String inviteCode})>(value: final created):
+            teamId = created.teamId;
+          case ResultFailure<({String teamId, String inviteCode})>(failure: final failure):
             return Result.failure(failure);
         }
       case TeamSetupMode.join:
         final joinId = data.team.inviteCode.trim();
-        final joined = await teamRepository.joinTeamAsCoach(
-          teamId: joinId,
-          coachUid: uid,
-        );
+        final joined = await teamRepository.joinTeamAsCoach(teamId: joinId);
         if (joined.isFailure) return joined;
         teamId = joinId;
       case null:

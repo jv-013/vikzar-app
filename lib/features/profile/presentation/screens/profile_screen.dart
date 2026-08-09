@@ -14,6 +14,8 @@ import '../../../../shared/models/player_profile.dart';
 import '../../../../shared/models/workspace_type.dart';
 import '../../../../shared/providers/current_app_user_provider.dart';
 import '../../../../shared/widgets/fade_scale_in.dart';
+import '../../../team/presentation/controllers/team_roster_controller.dart';
+import '../../../team/presentation/widgets/invite_players_dialog.dart';
 import '../widgets/edit_profile_sheet.dart';
 import '../widgets/workspace_switch_sheet.dart';
 
@@ -102,6 +104,7 @@ class ProfileScreen extends ConsumerWidget {
               else ...[
                 const VikzarSectionHeader('About You'),
                 ..._coachAboutRows(ref),
+                const _CoachTeamSection(),
               ],
               // Phase 13 §4/§5 — a "Switch Workspace" row surfaced
               // directly on the Profile screen itself (previously only
@@ -208,5 +211,47 @@ List<Widget> _coachAboutRows(WidgetRef ref) {
       subtitle: (profile.club ?? '').isEmpty ? 'Not set' : profile.club!,
     ),
   ];
+}
+
+/// Team management section — Phase 15's "Coach profile becomes real":
+/// Players Managed is a genuine roster count; Pods Assigned is an
+/// honest placeholder (`lib/features/devices/` has no repository yet,
+/// so there is nothing real to count); Invite Players/Manage Team are
+/// real actions, not "coming soon" snackbars.
+class _CoachTeamSection extends ConsumerWidget {
+  const _CoachTeamSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final teamId = ref.watch(coachTeamIdProvider);
+    final rosterAsync = teamId == null
+        ? null
+        : ref.watch(teamRosterEntriesProvider(teamId));
+    final playersManaged = rosterAsync?.value?.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const VikzarSectionHeader('Team'),
+        VikzarListRow(
+          title: 'Players Managed',
+          subtitle: teamId == null ? 'No team yet' : (playersManaged?.toString() ?? '—'),
+        ),
+        const VikzarListRow(title: 'Pods Assigned', subtitle: '0 — no hardware paired yet'),
+        VikzarListRow(
+          leading: Icon(Symbols.person_add, color: theme.colorScheme.secondary),
+          title: 'Invite Players',
+          subtitle: teamId == null ? 'Create a team first' : 'Share an invite code',
+          onTap: teamId == null ? null : () => showInvitePlayersDialog(context, teamId),
+        ),
+        VikzarListRow(
+          leading: Icon(Symbols.group, color: theme.colorScheme.secondary),
+          title: 'Manage Team',
+          onTap: () => context.push(AppRoute.coachTeamPath),
+        ),
+      ],
+    );
+  }
 }
 

@@ -20,6 +20,7 @@ import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/screens/settings_screen.dart';
 import '../features/sessions/presentation/screens/coach_sessions_screen.dart';
 import '../features/sessions/presentation/screens/player_activity_screen.dart';
+import '../features/team/presentation/screens/join_team_screen.dart';
 import '../features/team/presentation/screens/player_detail_screen.dart';
 import '../features/team/presentation/screens/team_screen.dart';
 import '../features/workspace/presentation/screens/become_a_coach_complete_screen.dart';
@@ -273,6 +274,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'coach-alerts',
         builder: (context, state) => const AlertsScreen(),
       ),
+      // Phase 15 — pushed from Player Home's "no coach yet" card, the
+      // same "pushed from within the subtree, not a tab" pattern as
+      // Player Detail/Alerts above.
+      GoRoute(
+        path: AppRoute.playerJoinTeamPath,
+        name: 'player-join-team',
+        builder: (context, state) => const JoinTeamScreen(),
+      ),
     ],
   );
 });
@@ -375,6 +384,10 @@ abstract final class AppRoute {
 
   static const String becomeCoachPath = '/player/become-a-coach';
   static const String becomeCoachCompletePath = '/player/become-a-coach/complete';
+
+  /// Phase 15 — a player redeeming a coach's invite code, pushed from
+  /// Player Home's "no coach yet" card.
+  static const String playerJoinTeamPath = '/player/join-team';
 
   /// Player Detail, pushed from the Team screen rather than a shell
   /// branch — the exact pattern FLUTTER_ARCHITECTURE.md §4 anticipates.

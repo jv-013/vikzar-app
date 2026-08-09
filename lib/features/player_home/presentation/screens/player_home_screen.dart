@@ -41,6 +41,7 @@ class PlayerHomeScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final user = ref.watch(currentAppUserProvider);
     final name = _firstName(user?.displayName);
+    final teamId = user?.workspaces.player?.teamId;
     final notificationsAsync = ref.watch(notificationsControllerProvider);
 
     return Scaffold(
@@ -55,6 +56,10 @@ class PlayerHomeScreen extends ConsumerWidget {
             children: [
               Text(_greeting(name), style: theme.textTheme.headlineLarge),
               const SizedBox(height: SpacingTokens.space24),
+              if (teamId == null) ...[
+                const _NoTeamCard(),
+                const SizedBox(height: SpacingTokens.space16),
+              ],
               _TodaysStatusCard(trainingStatus: user?.playerProfile?.trainingStatus),
               const SizedBox(height: SpacingTokens.space16),
               const _PodStatusCard(),
@@ -211,6 +216,52 @@ class _PodStatusCard extends StatelessWidget {
             ),
           ),
           const VikzarStatusChip(label: 'No sync yet'),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown when the player has no team yet — the only way onto a team is a
+/// coach's invite code (`AppRoute.playerJoinTeamPath`); nothing here is
+/// fabricated or auto-assigned.
+class _NoTeamCard extends StatelessWidget {
+  const _NoTeamCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final elevation = theme.extension<VikzarElevation>();
+    final background = elevation == null
+        ? theme.colorScheme.surface
+        : Color.alphaBlend(elevation.level1Overlay, theme.colorScheme.surface);
+
+    return Container(
+      padding: const EdgeInsets.all(SpacingTokens.space16),
+      decoration: BoxDecoration(color: background, borderRadius: RadiusTokens.mediumRadius),
+      child: Row(
+        children: [
+          Icon(Symbols.group_off, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: SpacingTokens.space12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('No coach yet', style: theme.textTheme.titleSmall),
+                const SizedBox(height: SpacingTokens.space4),
+                Text(
+                  'Enter an invite code from your coach to join a team.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => context.push(AppRoute.playerJoinTeamPath),
+            child: const Text('Join'),
+          ),
         ],
       ),
     );
