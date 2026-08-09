@@ -56,15 +56,11 @@ class RazRepositoryImpl implements RazRepository {
     return _call('razAsk', _askPayload(audience, question, history, mode));
   }
 
-  /// **`mode` deliberately not sent yet.** The currently-deployed
-  /// `razAsk` revision validates its payload with an exact-shape check
-  /// that rejects unknown fields — sending `mode` before that revision
-  /// is live turns every RAZ call into a fast, clean
-  /// `invalid-argument` failure (confirmed live: "Couldn't reach RAZ."
-  /// on every message). [mode] stays a real parameter, threaded and
-  /// ready, so turning this back on the moment the new backend is
-  /// deployed is a one-line change here, not a re-plumb — see
-  /// `RC1_RAZ_INTELLIGENCE_UPGRADE.md` §11/§12 for the full context.
+  /// `mode` restored — the deployed `razAsk` revision (`razask-00003-mad`,
+  /// confirmed via `gcloud functions describe` and a direct read of its
+  /// deployed source) now accepts `mode` in its exact-shape validation.
+  /// See `RC1_RAZ_INTELLIGENCE_UPGRADE.md` §11/§12 for the history of why
+  /// this was previously omitted.
   Map<String, dynamic> _askPayload(
     RazAudience audience,
     String question,
@@ -78,6 +74,7 @@ class RazRepositoryImpl implements RazRepository {
         'history': [
           for (final turn in history) {'question': turn.question, 'answer': turn.answer},
         ],
+      'mode': mode.wireName,
     };
   }
 

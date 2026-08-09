@@ -9,22 +9,16 @@ import '../../domain/utils/raz_text_utils.dart';
 
 const _maxHistoryTurns = 6;
 
-/// **Deliberately off.** The streaming path below (`askStream`,
-/// sentence-level TTS, live-growing chat bubbles) is fully implemented
-/// and compiles/analyzes clean, but live device testing this phase
-/// found a severe, reproducible failure: calling `HttpsCallable.stream`
-/// against the currently-deployed (non-streaming-aware) `razAsk`
-/// revision doesn't just fail the request — it freezes the entire
-/// Flutter isolate. Even a client-side `Stream.timeout` never fires,
-/// because the isolate's own event loop stops processing, including its
-/// own `Timer`s. Deployment tooling in this environment could not push
-/// the new streaming-aware backend to confirm the fix (see
-/// `RC1_RAZ_INTELLIGENCE_UPGRADE.md`'s Release Risks section) — so
-/// rather than ship a client that can freeze against the live backend
-/// today, this flag keeps the app on the exact non-streaming path that
-/// was already proven stable, until both sides can be deployed and
-/// tested together. Flip this only after that.
-const _useStreamingConversation = false;
+/// **Enabled.** The previous freeze (`HttpsCallable.stream` against a
+/// non-streaming-aware backend locking the Flutter isolate — even past
+/// a client-side `Stream.timeout`) was a symptom of the *old* deployed
+/// `razAsk`, not of this code. The backend is now deployed as a real
+/// streaming-capable revision (`razask-00003-mad`, confirmed via
+/// `gcloud functions describe` and a direct read of its deployed
+/// source), so this flag now matches reality. See
+/// `RC1_RAZ_INTELLIGENCE_UPGRADE.md` §11/§11b for the full history —
+/// if this ever needs reverting, `_askOnce` remains fully intact below.
+const _useStreamingConversation = true;
 
 class RazConversationState {
   const RazConversationState({this.messages = const [], this.isLoading = false, this.errorText});
