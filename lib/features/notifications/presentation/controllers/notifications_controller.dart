@@ -6,10 +6,11 @@ import '../../domain/models/app_notification.dart';
 
 /// Streams `users/{uid}/notifications` from Firestore — **Revised at
 /// Phase 8B** (DECISIONS.md ADR-053), replacing the hardcoded two-item
-/// placeholder seed list. Since notification creation is Cloud-Function-only
-/// and no Cloud Functions exist yet ([NotificationRepository]'s doc
-/// comment), this collection is genuinely, honestly empty for every account
-/// today — the Notification Center's empty state is real, not simulated.
+/// placeholder seed list. Notification creation is Cloud-Function-only;
+/// real triggers (`onAlertCreated`/`onReportCreated`/
+/// `onPlannedSessionCreated`/`onSessionCompleted`, ADR-067) write to this
+/// collection since Phase 13/15 — an account with no qualifying events
+/// yet sees a genuinely, honestly empty collection, not a simulated one.
 class NotificationsController extends StreamNotifier<List<AppNotification>> {
   @override
   Stream<List<AppNotification>> build() {

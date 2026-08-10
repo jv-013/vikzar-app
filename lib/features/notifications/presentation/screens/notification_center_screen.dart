@@ -10,7 +10,10 @@ import '../controllers/notifications_controller.dart';
 
 /// Notification Center — DESIGN_SPECIFICATION.md §16 row 25. Supports
 /// Empty, Loading, and Populated states, per Phase 7's explicit
-/// requirement; realistic placeholder notifications, no backend.
+/// requirement. Genuinely Cloud-Function-backed since Phase 13/15/19
+/// (ADR-067) — this streams real `users/{uid}/notifications` with no
+/// mock/seed data; the empty state shown to a fresh account is a real
+/// empty collection, not a placeholder standing in for a missing backend.
 class NotificationCenterScreen extends ConsumerWidget {
   const NotificationCenterScreen({super.key});
 
@@ -68,6 +71,30 @@ class NotificationCenterScreen extends ConsumerWidget {
   }
 }
 
+/// RAZ's five notification categories (`razNotificationEngine.ts`'s
+/// `RazNotificationCategory`) mapped to an icon — shown when present,
+/// falling back to [_iconForCategory] (the coarser, always-present
+/// structural type) otherwise. A RAZ category exists only for
+/// alert/report-sourced notifications; every other notification shows
+/// its structural-type icon instead.
+IconData _iconForRazCategory(String razCategory) => switch (razCategory) {
+  'recovery' => Symbols.spa,
+  'coach' => Symbols.groups,
+  'session' => Symbols.event_available,
+  'hardware' => Symbols.sensors,
+  'movement' => Symbols.directions_run,
+  _ => Symbols.notifications,
+};
+
+IconData _iconForCategory(NotificationCategory category) => switch (category) {
+  NotificationCategory.alert => Symbols.warning,
+  NotificationCategory.reportReady => Symbols.description,
+  NotificationCategory.sessionSummary => Symbols.event_available,
+  NotificationCategory.teamInvite => Symbols.group_add,
+  NotificationCategory.sessionScheduled => Symbols.event,
+  NotificationCategory.system => Symbols.notifications,
+};
+
 class _NotificationRow extends StatelessWidget {
   const _NotificationRow({required this.notification, required this.onTap});
 
@@ -78,6 +105,9 @@ class _NotificationRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final icon = notification.razCategory != null
+        ? _iconForRazCategory(notification.razCategory!)
+        : _iconForCategory(notification.category);
 
     return InkWell(
       onTap: onTap,
@@ -89,6 +119,8 @@ class _NotificationRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Icon(icon, size: 20, color: colorScheme.secondary),
+            const SizedBox(width: SpacingTokens.space12),
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Container(

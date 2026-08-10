@@ -12,6 +12,7 @@ import '../../../../shared/providers/current_uid_provider.dart';
 import '../../../../shared/widgets/fade_scale_in.dart';
 import '../../../../shared/widgets/notification_timeline_card.dart' show relativeTime;
 import '../../../../shared/widgets/section_empty_state.dart';
+import '../../../../shared/widgets/section_loading_state.dart';
 import '../../data/repositories/alert_repository_impl.dart';
 import '../../domain/models/alert.dart';
 import '../controllers/alerts_controller.dart';
@@ -66,7 +67,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
               ),
               Expanded(
                 child: alertsAsync.when(
-                  loading: () => const SizedBox.shrink(),
+                  loading: () => const SectionLoadingState(),
                   error: (_, _) => const SectionEmptyState(
                     icon: Symbols.error,
                     headline: "Couldn't load alerts.",

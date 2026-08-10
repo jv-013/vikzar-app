@@ -3,11 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failure.dart';
 import '../../../../core/errors/failure_message_mapper.dart';
+import '../../../../design_system/components/vikzar_chip_group.dart';
+import '../../../../design_system/components/vikzar_section_header.dart';
 import '../../../../design_system/components/vikzar_segmented_control.dart';
 import '../../../../design_system/components/vikzar_text_field.dart';
 import '../../../../design_system/tokens/spacing.dart';
+import '../../../team/presentation/controllers/team_roster_controller.dart';
 import '../../domain/models/planned_session.dart';
 import '../controllers/planned_sessions_controller.dart';
+
+const _durationOptions = [30, 45, 60, 90, 120];
 
 /// Phase 13 §5's "Create Session" — the UI exposes this action, but the
 /// frontend never writes `plannedSessions` directly: submitting calls
@@ -27,8 +32,11 @@ class CreatePlannedSessionSheet extends ConsumerStatefulWidget {
 class _CreatePlannedSessionSheetState extends ConsumerState<CreatePlannedSessionSheet> {
   final _titleController = TextEditingController();
   final _notesController = TextEditingController();
+  final _locationController = TextEditingController();
   PlannedSessionType _type = PlannedSessionType.training;
   DateTime? _scheduledAt;
+  int? _durationMinutes;
+  Set<String> _selectedPlayerIds = {};
   bool _isSubmitting = false;
   Failure? _failure;
 
@@ -36,6 +44,7 @@ class _CreatePlannedSessionSheetState extends ConsumerState<CreatePlannedSession
   void dispose() {
     _titleController.dispose();
     _notesController.dispose();
+    _locationController.dispose();
     super.dispose();
   }
 
@@ -61,6 +70,7 @@ class _CreatePlannedSessionSheetState extends ConsumerState<CreatePlannedSession
   }
 
   Future<void> _submit() async {
+    if (_isSubmitting) return;
     final scheduledAt = _scheduledAt;
     if (scheduledAt == null) return;
 
@@ -75,6 +85,9 @@ class _CreatePlannedSessionSheetState extends ConsumerState<CreatePlannedSession
       type: _type,
       scheduledAt: scheduledAt,
       notes: _notesController.text,
+      durationMinutes: _durationMinutes,
+      location: _locationController.text,
+      playerIds: _selectedPlayerIds.isEmpty ? null : _selectedPlayerIds.toList(),
     );
 
     if (!mounted) return;
@@ -99,7 +112,8 @@ class _CreatePlannedSessionSheetState extends ConsumerState<CreatePlannedSession
         top: SpacingTokens.space20,
         bottom: MediaQuery.of(context).viewInsets.bottom + SpacingTokens.space20,
       ),
-      child: Column(
+      child: SingleChildScrollView(
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -129,10 +143,32 @@ class _CreatePlannedSessionSheetState extends ConsumerState<CreatePlannedSession
             ),
           ),
           const SizedBox(height: SpacingTokens.space16),
+          Text('Duration', style: theme.textTheme.titleSmall),
+          const SizedBox(height: SpacingTokens.space8),
+          VikzarSegmentedControl<int>(
+            options: _durationOptions,
+            labelBuilder: (minutes) => '$minutes min',
+            selected: _durationMinutes,
+            onChanged: (value) => setState(() => _durationMinutes = value),
+          ),
+          const SizedBox(height: SpacingTokens.space16),
+          VikzarTextField(
+            label: 'Location (optional)',
+            controller: _locationController,
+            enabled: !_isSubmitting,
+          ),
+          const SizedBox(height: SpacingTokens.space16),
           VikzarTextField(
             label: 'Notes (optional)',
             controller: _notesController,
             enabled: !_isSubmitting,
+          ),
+          const SizedBox(height: SpacingTokens.space16),
+          const VikzarSectionHeader('Players (optional — leave empty for whole squad)'),
+          _PlayerSelector(
+            teamId: widget.teamId,
+            selected: _selectedPlayerIds,
+            onChanged: (value) => setState(() => _selectedPlayerIds = value),
           ),
           if (errorText != null) ...[
             const SizedBox(height: SpacingTokens.space12),
@@ -153,7 +189,47 @@ class _CreatePlannedSessionSheetState extends ConsumerState<CreatePlannedSession
                 : const Text('Create Session'),
           ),
         ],
+        ),
       ),
+    );
+  }
+}
+
+class _PlayerSelector extends ConsumerWidget {
+  const _PlayerSelector({required this.teamId, required this.selected, required this.onChanged});
+
+  final String teamId;
+  final Set<String> selected;
+  final ValueChanged<Set<String>> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final entriesAsync = ref.watch(teamRosterEntriesProvider(teamId));
+
+    return entriesAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => Text(
+        "Couldn't load your roster.",
+        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      ),
+      data: (entries) {
+        if (entries.isEmpty) {
+          return Text(
+            'No players on your roster yet.',
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          );
+        }
+        return VikzarChipGroup<String>(
+          options: [for (final entry in entries) entry.member.uid],
+          labelBuilder: (uid) => entries
+              .firstWhere((entry) => entry.member.uid == uid)
+              .member
+              .displayName,
+          selected: selected,
+          onChanged: onChanged,
+        );
+      },
     );
   }
 }

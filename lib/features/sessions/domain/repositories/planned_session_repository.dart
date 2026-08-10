@@ -16,5 +16,8 @@ abstract interface class PlannedSessionRepository {
     required PlannedSessionType type,
     required DateTime scheduledAt,
     String? notes,
+    int? durationMinutes,
+    String? location,
+    List<String>? playerIds,
   });
 }

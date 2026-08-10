@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.vikzar.vikzar",
+      "sha256_cert_fingerprints": [
+        "07:A2:5E:6F:C2:56:55:CC:00:59:A3:F4:47:FF:77:5E:68:E8:D2:1C:BB:AE:C2:A2:C8:78:5F:87:50:92:CC:DE"
+      ]
+    }
+  }
+]

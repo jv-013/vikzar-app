@@ -147,7 +147,7 @@ class _EditPlayerProfileFormState extends ConsumerState<_EditPlayerProfileForm> 
       _isSaving = false;
       _failure = result.fold(
         onSuccess: (_) => null,
-        onFailure: (failure) => failure,
+        onFailure: (Failure failure) => failure,
       );
     });
   }
@@ -309,6 +309,8 @@ class _EditCoachProfileFormState extends ConsumerState<_EditCoachProfileForm> {
   late final TextEditingController _ageController;
   late final TextEditingController _titleController;
   late final TextEditingController _clubController;
+  late final TextEditingController _licenseController;
+  late final TextEditingController _academyController;
   bool _isSaving = false;
   Failure? _failure;
 
@@ -323,6 +325,8 @@ class _EditCoachProfileFormState extends ConsumerState<_EditCoachProfileForm> {
     _ageController = TextEditingController(text: _current.age?.toString() ?? '');
     _titleController = TextEditingController(text: _current.title ?? '');
     _clubController = TextEditingController(text: _current.club ?? '');
+    _licenseController = TextEditingController(text: _current.license ?? '');
+    _academyController = TextEditingController(text: _current.academy ?? '');
   }
 
   @override
@@ -331,6 +335,8 @@ class _EditCoachProfileFormState extends ConsumerState<_EditCoachProfileForm> {
     _ageController.dispose();
     _titleController.dispose();
     _clubController.dispose();
+    _licenseController.dispose();
+    _academyController.dispose();
     super.dispose();
   }
 
@@ -360,6 +366,8 @@ class _EditCoachProfileFormState extends ConsumerState<_EditCoachProfileForm> {
         age: int.tryParse(_ageController.text.trim()),
         title: _titleController.text.trim(),
         club: _clubController.text.trim(),
+        license: _licenseController.text.trim(),
+        academy: _academyController.text.trim(),
       ),
     );
     if (profileResult.isFailure) {
@@ -376,7 +384,7 @@ class _EditCoachProfileFormState extends ConsumerState<_EditCoachProfileForm> {
       _isSaving = false;
       _failure = result.fold(
         onSuccess: (_) => null,
-        onFailure: (failure) => failure,
+        onFailure: (Failure failure) => failure,
       );
     });
   }
@@ -416,6 +424,18 @@ class _EditCoachProfileFormState extends ConsumerState<_EditCoachProfileForm> {
             VikzarTextField(
               label: 'Club',
               controller: _clubController,
+              enabled: !_isSaving,
+            ),
+            const SizedBox(height: SpacingTokens.space16),
+            VikzarTextField(
+              label: 'Coaching License',
+              controller: _licenseController,
+              enabled: !_isSaving,
+            ),
+            const SizedBox(height: SpacingTokens.space16),
+            VikzarTextField(
+              label: 'Academy',
+              controller: _academyController,
               enabled: !_isSaving,
             ),
             if (_failure != null) ...[

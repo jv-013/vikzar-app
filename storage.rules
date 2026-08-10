@@ -6,7 +6,10 @@ rules_version = '2';
 // raw/report path is Cloud-Function-only (no client, and no Cloud
 // Functions, write to it yet).
 //
-// NOT DEPLOYED — created only, per Phase 8B's explicit instruction.
+// DEPLOYED and live in production (vikzar-prod) — confirmed at RC-1 by
+// reading the ruleset directly back from the project, byte-identical to
+// this file. Originally created "not deployed" per Phase 8B's explicit
+// instruction; deployed in a later phase.
 service firebase.storage {
   match /b/{bucket}/o {
 

@@ -13,6 +13,7 @@ import '../../../../routing/app_router.dart';
 import '../../../../shared/models/player_profile.dart';
 import '../../../../shared/widgets/fade_scale_in.dart';
 import '../../../../shared/widgets/section_empty_state.dart';
+import '../../../../shared/widgets/section_loading_state.dart';
 import '../controllers/team_roster_controller.dart';
 
 const _positionOrder = [
@@ -138,7 +139,7 @@ class _RosterView extends ConsumerWidget {
           const SizedBox(height: SpacingTokens.space8),
           Expanded(
             child: entriesAsync.when(
-              loading: () => const SizedBox.shrink(),
+              loading: () => const SectionLoadingState(),
               error: (_, _) => const SectionEmptyState(
                 icon: Symbols.error,
                 headline: "Couldn't load your roster.",

@@ -17,7 +17,7 @@ import '../../widgets/onboarding_step_scaffold.dart';
 /// selectable Cards, each opening an inline field — never a new screen.
 /// This screen itself only collects [TeamSetupData] into
 /// [CoachOnboardingController] — the actual `TeamRepository.createTeam`/
-/// `joinTeamAsCoach` Firestore write happens later, when
+/// `joinTeamAsCoach` Cloud Function call happens later, when
 /// `OnboardingCompletionController.complete` runs at "Get Started"
 /// (`onboarding_completion_controller.dart`), not here.
 class CreateJoinTeamScreen extends ConsumerStatefulWidget {

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -135,6 +136,13 @@ class ProfileScreen extends ConsumerWidget {
                   loading: () => '—',
                   error: (_, _) => 'Unavailable',
                 ),
+                // Hidden developer entry point (Phase 20.5 Part 4) — a
+                // long-press here is the only way to reach Developer
+                // Diagnostics; debug builds only, so this is a no-op
+                // (and the target screen doesn't exist) in release.
+                onLongPress: kDebugMode
+                    ? () => context.push(AppRoute.diagnosticsPath(workspace))
+                    : null,
               ),
               const SizedBox(height: SpacingTokens.space32),
             ],
@@ -209,6 +217,14 @@ List<Widget> _coachAboutRows(WidgetRef ref) {
     VikzarListRow(
       title: 'Club',
       subtitle: (profile.club ?? '').isEmpty ? 'Not set' : profile.club!,
+    ),
+    VikzarListRow(
+      title: 'Coaching License',
+      subtitle: (profile.license ?? '').isEmpty ? 'Not set' : profile.license!,
+    ),
+    VikzarListRow(
+      title: 'Academy',
+      subtitle: (profile.academy ?? '').isEmpty ? 'Not set' : profile.academy!,
     ),
   ];
 }

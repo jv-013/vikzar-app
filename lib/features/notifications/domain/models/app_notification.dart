@@ -42,6 +42,7 @@ class AppNotification {
     required this.timestamp,
     this.read = false,
     this.category = NotificationCategory.system,
+    this.razCategory,
   });
 
   final String id;
@@ -51,6 +52,16 @@ class AppNotification {
   final bool read;
   final NotificationCategory category;
 
+  /// RAZ's own semantic flavor of *why* this notification is what it is
+  /// (`recovery`/`coach`/`session`/`hardware`/`movement` — see
+  /// `RazNotificationCategory` in `functions/src/lib/intelligence/
+  /// razNotificationEngine.ts`) — distinct from [category] above, which
+  /// is the structural/routing type every notification has. Only
+  /// alert/report-sourced notifications carry one; `null` for
+  /// `teamInvite`/`sessionScheduled`/`sessionSummary`/`system`
+  /// notifications, which have no RAZ category to show.
+  final String? razCategory;
+
   factory AppNotification.fromMap(Map<String, dynamic> data, {required String id}) {
     return AppNotification(
       id: id,
@@ -59,6 +70,7 @@ class AppNotification {
       timestamp: (data['createdAt'] as DateTime?) ?? DateTime.now(),
       read: data['read'] as bool? ?? false,
       category: NotificationCategory.fromFirestoreKey(data['type'] as String?),
+      razCategory: data['razCategory'] as String?,
     );
   }
 }

@@ -1,9 +1,12 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/alerts/presentation/screens/alerts_screen.dart';
 import '../features/auth/presentation/screens/auth_screen.dart';
 import '../features/coach_home/presentation/screens/coach_home_screen.dart';
+import '../features/diagnostics/presentation/screens/diagnostics_screen.dart';
+import '../features/live_monitoring/presentation/screens/live_team_monitoring_screen.dart';
 import '../features/notifications/presentation/screens/notification_center_screen.dart';
 import '../features/onboarding/presentation/screens/coach/coach_level_screen.dart';
 import '../features/onboarding/presentation/screens/coach/coach_permissions_screen.dart';
@@ -18,6 +21,7 @@ import '../features/onboarding/presentation/screens/splash_screen.dart';
 import '../features/player_home/presentation/screens/player_home_screen.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/screens/settings_screen.dart';
+import '../features/raz/presentation/screens/raz_screen.dart';
 import '../features/sessions/presentation/screens/coach_sessions_screen.dart';
 import '../features/sessions/presentation/screens/player_activity_screen.dart';
 import '../features/team/presentation/screens/join_team_screen.dart';
@@ -249,6 +253,36 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'coach-notifications',
         builder: (context, state) => const NotificationCenterScreen(),
       ),
+      // RAZ, Vikzar's Football Operating System. Pushed from either
+      // workspace's app bar and from the Daily Brief card on Home, the
+      // same "pushed from within the subtree" pattern as every other
+      // non-tab destination above.
+      GoRoute(
+        path: AppRoute.razPath(WorkspaceType.player),
+        name: 'player-raz',
+        builder: (context, state) => const RazScreen(workspace: WorkspaceType.player),
+      ),
+      GoRoute(
+        path: AppRoute.razPath(WorkspaceType.coach),
+        name: 'coach-raz',
+        builder: (context, state) => const RazScreen(workspace: WorkspaceType.coach),
+      ),
+      // Developer Diagnostics (Phase 20.5 Part 4) — hidden, debug-only.
+      // Registered only in debug builds so the route (and everything it
+      // imports) is compiled out of release/App Store/Play Store builds
+      // entirely, not just hidden behind a UI toggle.
+      if (kDebugMode) ...[
+        GoRoute(
+          path: AppRoute.diagnosticsPath(WorkspaceType.player),
+          name: 'player-diagnostics',
+          builder: (context, state) => const DiagnosticsScreen(workspace: WorkspaceType.player),
+        ),
+        GoRoute(
+          path: AppRoute.diagnosticsPath(WorkspaceType.coach),
+          name: 'coach-diagnostics',
+          builder: (context, state) => const DiagnosticsScreen(workspace: WorkspaceType.coach),
+        ),
+      ],
       GoRoute(
         path: AppRoute.becomeCoachPath,
         name: 'become-a-coach',
@@ -273,6 +307,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.coachAlertsPath,
         name: 'coach-alerts',
         builder: (context, state) => const AlertsScreen(),
+      ),
+      // Live Team Monitoring was dropped as a standalone bottom-nav tab at
+      // Phase 13 (100% ComingSoonScreen placeholder then — see the coach
+      // shell branches' own comment above) but was never deleted from
+      // scope (DECISIONS.md ADR-004: in scope for MVP). Now real, reached
+      // the same "pushed from the Dashboard, not a tab" way as Alerts.
+      GoRoute(
+        path: AppRoute.coachLivePath,
+        name: 'coach-live',
+        builder: (context, state) => const LiveTeamMonitoringScreen(),
       ),
       // Phase 15 — pushed from Player Home's "no coach yet" card, the
       // same "pushed from within the subtree, not a tab" pattern as
@@ -372,6 +416,7 @@ abstract final class AppRoute {
   static const String coachTeamPath = '/coach/team';
   static const String coachSessionsPath = '/coach/sessions';
   static const String coachAlertsPath = '/coach/alerts';
+  static const String coachLivePath = '/coach/live';
 
   static String profilePath(WorkspaceType workspace) =>
       '${subtreePrefix(workspace)}profile';
@@ -381,6 +426,13 @@ abstract final class AppRoute {
 
   static String notificationsPath(WorkspaceType workspace) =>
       '${subtreePrefix(workspace)}notifications';
+
+  /// RAZ, reachable from either workspace.
+  static String razPath(WorkspaceType workspace) => '${subtreePrefix(workspace)}raz';
+
+  /// Developer Diagnostics — debug-only, see `diagnostics_screen.dart`.
+  static String diagnosticsPath(WorkspaceType workspace) =>
+      '${subtreePrefix(workspace)}diagnostics';
 
   static const String becomeCoachPath = '/player/become-a-coach';
   static const String becomeCoachCompletePath = '/player/become-a-coach/complete';

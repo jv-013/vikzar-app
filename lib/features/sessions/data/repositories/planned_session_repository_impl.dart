@@ -62,6 +62,9 @@ class PlannedSessionRepositoryImpl implements PlannedSessionRepository {
     required PlannedSessionType type,
     required DateTime scheduledAt,
     String? notes,
+    int? durationMinutes,
+    String? location,
+    List<String>? playerIds,
   }) async {
     try {
       final callable = _functions.httpsCallable('createPlannedSession');
@@ -71,6 +74,9 @@ class PlannedSessionRepositoryImpl implements PlannedSessionRepository {
         'type': type.firestoreKey,
         'scheduledAt': scheduledAt.toUtc().toIso8601String(),
         if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        'durationMinutes': ?durationMinutes,
+        if (location != null && location.trim().isNotEmpty) 'location': location.trim(),
+        if (playerIds != null && playerIds.isNotEmpty) 'playerIds': playerIds,
       });
       return const Result.success(null);
     } catch (e) {

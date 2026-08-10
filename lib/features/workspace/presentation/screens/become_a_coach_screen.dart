@@ -55,6 +55,7 @@ class _BecomeACoachScreenState extends ConsumerState<BecomeACoachScreen> {
       _roleController.text.trim().isNotEmpty;
 
   Future<void> _submit() async {
+    if (_isSubmitting) return;
     final uid = ref.read(currentUidProvider);
     final user = ref.read(currentAppUserProvider);
     if (uid == null || user == null || _level == null) return;

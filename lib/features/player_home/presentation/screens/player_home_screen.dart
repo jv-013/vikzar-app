@@ -12,10 +12,13 @@ import '../../../../shared/models/player_profile.dart';
 import '../../../../shared/models/workspace_type.dart';
 import '../../../../shared/providers/current_app_user_provider.dart';
 import '../../../../shared/widgets/fade_scale_in.dart';
-import '../../../../shared/widgets/notification_timeline_card.dart';
+import '../../../../shared/widgets/recent_activity_feed.dart';
 import '../../../../shared/widgets/section_empty_state.dart';
 import '../../../notifications/domain/models/app_notification.dart';
 import '../../../notifications/presentation/controllers/notifications_controller.dart';
+import '../../../raz/presentation/widgets/raz_daily_brief_card.dart';
+import '../../../sessions/domain/models/planned_session.dart';
+import '../../../sessions/presentation/controllers/planned_sessions_controller.dart';
 
 /// Player Home — DESIGN_SPECIFICATION.md §19.2, **rebuilt at Phase 9** to
 /// the product's exact section list: Greeting, Today's Status, Pod Status,
@@ -55,6 +58,8 @@ class PlayerHomeScreen extends ConsumerWidget {
             ),
             children: [
               Text(_greeting(name), style: theme.textTheme.headlineLarge),
+              const SizedBox(height: SpacingTokens.space16),
+              const RazDailyBriefCard(workspace: WorkspaceType.player),
               const SizedBox(height: SpacingTokens.space24),
               if (teamId == null) ...[
                 const _NoTeamCard(),
@@ -66,44 +71,13 @@ class PlayerHomeScreen extends ConsumerWidget {
               const SizedBox(height: SpacingTokens.space32),
               Text('Next Training', style: theme.textTheme.titleLarge),
               const SizedBox(height: SpacingTokens.space8),
-              const SectionEmptyState(
-                icon: Symbols.event,
-                headline: 'No training scheduled.',
-                body: "Your coach's next session will appear here once it's set.",
-              ),
+              _NextTrainingSection(teamId: teamId),
               const SizedBox(height: SpacingTokens.space32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Recent Activity', style: theme.textTheme.titleLarge),
-                  TextButton(
-                    onPressed: () => context.go(AppRoute.playerTimelinePath),
-                    child: const Text('View All'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: SpacingTokens.space8),
-              notificationsAsync.when(
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => const SizedBox.shrink(),
-                data: (notifications) {
-                  if (notifications.isEmpty) {
-                    return const SectionEmptyState(
-                      icon: Symbols.timeline,
-                      headline: 'No activity yet.',
-                      body:
-                          "This will fill in once your training data starts flowing.",
-                    );
-                  }
-                  return Column(
-                    children: [
-                      for (final notification in notifications.take(2)) ...[
-                        NotificationTimelineCard(notification: notification),
-                        const SizedBox(height: SpacingTokens.space12),
-                      ],
-                    ],
-                  );
-                },
+              RecentActivityFeed(
+                title: 'Recent Activity',
+                emptyBody: 'This will fill in once your training data starts flowing.',
+                notificationsAsync: notificationsAsync,
+                onViewAll: () => context.go(AppRoute.playerTimelinePath),
               ),
               const SizedBox(height: SpacingTokens.space32),
               Text('Insights', style: theme.textTheme.titleLarge),
@@ -182,6 +156,11 @@ class _TodaysStatusCard extends StatelessWidget {
   }
 }
 
+/// Always the honest "not connected" state — no device-pairing pipeline
+/// exists yet (`lib/features/devices/` is empty; Part 4's "clearly
+/// expect live hardware" placeholders apply here). Was previously
+/// parameterized for Demo Session to override; those params had no real
+/// caller left once Demo Mode was removed.
 class _PodStatusCard extends StatelessWidget {
   const _PodStatusCard();
 
@@ -266,6 +245,115 @@ class _NoTeamCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Real Firestore listener, per Phase 15 — previously a static empty
+/// state with no query behind it at all. Shows the soonest upcoming
+/// planned session for the player's team, if any.
+class _NextTrainingSection extends ConsumerWidget {
+  const _NextTrainingSection({required this.teamId});
+
+  final String? teamId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (teamId == null) {
+      return const SectionEmptyState(
+        icon: Symbols.event,
+        headline: 'No training scheduled.',
+        body: "Join a team to see your coach's sessions here.",
+      );
+    }
+    final sessionsAsync = ref.watch(upcomingPlannedSessionsProvider(teamId!));
+    return sessionsAsync.when(
+      // Deliberately quiet, not a SectionLoadingState — a secondary
+      // section below several other independent async cards on an
+      // already-rendered Home screen; see RecentActivityFeed's doc
+      // comment for the same reasoning applied here.
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SectionEmptyState(
+        icon: Symbols.error,
+        headline: "Couldn't load your next session.",
+      ),
+      data: (result) => result.fold(
+        onSuccess: (sessions) {
+          if (sessions.isEmpty) {
+            return const SectionEmptyState(
+              icon: Symbols.event,
+              headline: 'No training scheduled.',
+              body: "Your coach's next session will appear here once it's set.",
+            );
+          }
+          final next = sessions.first;
+          return _NextTrainingCard(session: next);
+        },
+        onFailure: (_) => const SectionEmptyState(
+          icon: Symbols.error,
+          headline: "Couldn't load your next session.",
+        ),
+      ),
+    );
+  }
+}
+
+class _NextTrainingCard extends StatelessWidget {
+  const _NextTrainingCard({required this.session});
+
+  final PlannedSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final elevation = theme.extension<VikzarElevation>();
+    final background = elevation == null
+        ? theme.colorScheme.surface
+        : Color.alphaBlend(elevation.level1Overlay, theme.colorScheme.surface);
+
+    return Container(
+      padding: const EdgeInsets.all(SpacingTokens.space16),
+      decoration: BoxDecoration(color: background, borderRadius: RadiusTokens.mediumRadius),
+      child: Row(
+        children: [
+          Icon(
+            session.type == PlannedSessionType.match
+                ? Symbols.sports_soccer
+                : Symbols.fitness_center,
+            color: theme.colorScheme.secondary,
+          ),
+          const SizedBox(width: SpacingTokens.space12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(session.title, style: theme.textTheme.titleSmall),
+                const SizedBox(height: SpacingTokens.space4),
+                Text(
+                  _formatDateTime(session.scheduledAt),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (session.location != null && session.location!.trim().isNotEmpty)
+                  Text(
+                    session.location!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatDateTime(DateTime dateTime) {
+  final hour = dateTime.hour % 12 == 0 ? 12 : dateTime.hour % 12;
+  final minute = dateTime.minute.toString().padLeft(2, '0');
+  final period = dateTime.hour < 12 ? 'AM' : 'PM';
+  return '${dateTime.month}/${dateTime.day}/${dateTime.year} $hour:$minute $period';
 }
 
 class _NotificationPreview extends StatelessWidget {

@@ -24,11 +24,17 @@ final createPlannedSessionProvider = Provider((ref) {
     required PlannedSessionType type,
     required DateTime scheduledAt,
     String? notes,
+    int? durationMinutes,
+    String? location,
+    List<String>? playerIds,
   }) => ref.read(plannedSessionRepositoryProvider).createPlannedSession(
     teamId: teamId,
     title: title,
     type: type,
     scheduledAt: scheduledAt,
     notes: notes,
+    durationMinutes: durationMinutes,
+    location: location,
+    playerIds: playerIds,
   );
 });

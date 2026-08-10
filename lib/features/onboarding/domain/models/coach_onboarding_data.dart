@@ -19,12 +19,16 @@ class CoachProfileData {
     this.age,
     this.title = '',
     this.club = '',
+    this.license = '',
+    this.academy = '',
   });
 
   final String name;
   final int? age;
   final String title;
   final String club;
+  final String license;
+  final String academy;
 
   bool get isComplete =>
       name.trim().isNotEmpty && age != null && title.trim().isNotEmpty;
@@ -109,5 +113,7 @@ class CoachOnboardingData {
     age: profile.age,
     title: profile.title,
     club: profile.club,
+    license: profile.license,
+    academy: profile.academy,
   );
 }

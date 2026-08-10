@@ -65,22 +65,21 @@ service cloud.firestore {
     match /teams/{teamId} {
       allow read: if isCoachOfTeam(teamId) || isMemberOfTeam(teamId);
 
-      // Self-service creation (ADR-051): the creator becomes the sole
-      // initial coach. Denormalized `orgId` is optional/absent until a
-      // future org-affiliation flow exists (§1.2, revised Phase 8B).
-      allow create: if isSignedIn() &&
-        request.resource.data.coachIds == [request.auth.uid];
+      // Phase 15: team creation and joining (as coach or player) now
+      // happen exclusively through `createTeam`/`joinTeamAsCoach`/
+      // `joinTeamWithInvite` (Admin SDK, not subject to these rules).
+      // The previous self-service `create` (creator names themself sole
+      // coach) and `update` (any signed-in user self-adds to `coachIds`
+      // using the teamId itself as the "join code") arms are removed —
+      // neither ever validated an invite, so any client that learned a
+      // teamId could join as co-coach with no server-side check at all.
+      allow create: if false;
 
-      // A coach may update `name`/`ageGroup` at any time. Any
-      // authenticated user may self-add to `coachIds` via arrayUnion
-      // (join-as-coach, using the teamId itself as the join code, per
-      // §1.2's Phase 8B revision) — but never remove or replace another
-      // coach's entry.
-      allow update: if (isCoachOfTeam(teamId) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'ageGroup', 'updatedAt'])) ||
-        (isSignedIn() &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coachIds', 'updatedAt']) &&
-          request.resource.data.coachIds == resource.data.coachIds.concat([request.auth.uid]));
+      // A coach may still update `name`/`ageGroup` directly — this was
+      // never the vulnerable path; `coachIds` is no longer client-
+      // writable at all.
+      allow update: if isCoachOfTeam(teamId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'ageGroup', 'updatedAt']);
 
       allow delete: if false;
 
@@ -88,16 +87,14 @@ service cloud.firestore {
       match /members/{memberUid} {
         allow read: if isCoachOfTeam(teamId) || isMemberOfTeam(teamId);
 
-        // A coach manages any roster entry; a player may only create
-        // their own (self-service Join Team, ADR-051) — never someone
-        // else's. Phase 13 hardening: a self-joining player is now
-        // allowlisted to the fields Join Team actually sets — no rule
-        // elsewhere reads `role`/`status`/`jerseyNumber` for
-        // authorization today, so this was a data-integrity gap, not an
-        // exploitable one, but closing it is cheap.
-        allow create: if isCoachOfTeam(teamId) ||
-          (isSelf(memberUid) &&
-            request.resource.data.keys().hasOnly(['uid', 'displayName', 'role', 'status', 'joinedAt']));
+        // Phase 15: player self-join is now `joinTeamWithInvite`
+        // (invite-code validated server-side, Admin SDK). The previous
+        // `isSelf(memberUid)` arm let any signed-in user create their
+        // own membership in any team merely by knowing its id — no
+        // invite code was ever checked at the rules level. A coach can
+        // still manage roster entries directly (add/remove players
+        // manually, unrelated to the invite system).
+        allow create: if isCoachOfTeam(teamId);
         allow update: if isCoachOfTeam(teamId);
         allow delete: if isCoachOfTeam(teamId);
       }
@@ -135,13 +132,36 @@ service cloud.firestore {
 
       // Self-scoped writes only. `careerStats` and `primaryOrgId` remain
       // denied — both are Cloud-Function-only (§1.5).
+      //
+      // Phase 15 hardening: once a workspace exists, its contents are
+      // frozen against further client edits — a first-time grant (null
+      // -> a value) is still allowed, which is all onboarding
+      // completion ever needs, but a client can no longer change
+      // `workspaces.player.teamId` or `workspaces.coach.teamIds` after
+      // the fact. Real access was never actually gated on this
+      // denormalized field (`isCoachOfTeam`/`isMemberOfTeam` re-derive
+      // from `teams`/`members` directly), so this was defense-in-depth
+      // rather than the exploitable hole — but it's cheap to close, and
+      // means `workspaces` can never silently drift from what
+      // `joinTeamWithInvite`/`joinTeamAsCoach` actually granted.
       allow update: if isSelf(uid) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'uid', 'email', 'displayName', 'avatarUrl', 'fcmTokens',
           'workspaces', 'defaultWorkspace', 'playerProfile', 'coachProfile',
           'status', 'createdAt', 'updatedAt',
         ]) &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['careerStats', 'primaryOrgId']);
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['careerStats', 'primaryOrgId']) &&
+        (
+          !('workspaces' in request.resource.data.diff(resource.data).affectedKeys()) ||
+          (
+            resource.data.get('workspaces', {}).get('player', null) == null ||
+            request.resource.data.get('workspaces', {}).get('player', null) == resource.data.get('workspaces', {}).get('player', null)
+          ) &&
+          (
+            resource.data.get('workspaces', {}).get('coach', null) == null ||
+            request.resource.data.get('workspaces', {}).get('coach', null) == resource.data.get('workspaces', {}).get('coach', null)
+          )
+        );
 
       allow delete: if false;
 
@@ -153,6 +173,41 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
         allow delete: if false;
       }
+
+      // ---- users/{uid}/razDailyBriefs/{docId} ------------------------
+      // RAZ's context-hash-keyed cached brief — Cloud-Function-only in
+      // both directions, matching `_rateLimits`: Flutter always gets
+      // the brief through `razDailyBrief`'s return value, never by
+      // reading this collection directly, so there is no client read
+      // path to grant here at all.
+      match /razDailyBriefs/{docId} {
+        allow read, write: if false;
+      }
+
+      // ---- users/{uid}/razMemories/{topic} ----------------------------
+      // RAZ's persistent, structured memory (one document per topic) —
+      // Cloud-Function-only in both directions, same reasoning as
+      // `razDailyBriefs` above. Flutter never reads memory directly; it
+      // only ever sees memory's effect through a brief/reply that used
+      // it.
+      match /razMemories/{topic} {
+        allow read, write: if false;
+      }
+    }
+
+    // ---- teamInvites/{code} ---------------------------------------------
+    // Added Phase 15. Maps a random, unguessable invite code to a
+    // teamId. Never client-readable or client-writable — `createTeam`/
+    // `createTeamInvite` mint codes and `joinTeamWithInvite` resolves
+    // them, all via the Admin SDK, so a client can never enumerate valid
+    // codes or bypass redemption by reading/writing this collection
+    // directly. Document id doubling as the code itself (rather than a
+    // `code` field looked up by query) is what makes "no `list`
+    // permission" sufficient to prevent enumeration — a client would
+    // need to already know the exact code to even attempt a read, and
+    // this rule denies that read anyway.
+    match /teamInvites/{code} {
+      allow read, write: if false;
     }
 
     // ---- coachRequests/{requestId} -------------------------------------
@@ -219,6 +274,16 @@ service cloud.firestore {
     // client-writable; exists purely for Cloud Functions' own Admin-SDK
     // bookkeeping.
     match /_rateLimits/{principalUid} {
+      allow read, write: if false;
+    }
+
+    // ---- _processedEvents/{eventId} ----------------------------------------
+    // Added Phase 19.5 — Cloud Firestore trigger idempotency markers
+    // (`lib/idempotency.ts`'s `withEventIdempotency`), guarding trigger
+    // side effects that aren't naturally idempotent against Firestore's
+    // at-least-once delivery. Never client-readable or client-writable,
+    // same pattern as `_rateLimits`.
+    match /_processedEvents/{eventId} {
       allow read, write: if false;
     }
 

@@ -8,6 +8,7 @@ import '../../../../design_system/tokens/radius.dart';
 import '../../../../design_system/tokens/spacing.dart';
 import '../../../../shared/widgets/fade_scale_in.dart';
 import '../../../../shared/widgets/section_empty_state.dart';
+import '../../../../shared/widgets/section_loading_state.dart';
 import '../../../team/presentation/controllers/team_roster_controller.dart';
 import '../../domain/models/planned_session.dart';
 import '../controllers/planned_sessions_controller.dart';
@@ -96,7 +97,7 @@ class _UpcomingSessions extends ConsumerWidget {
     final sessionsAsync = ref.watch(upcomingPlannedSessionsProvider(teamId));
 
     return sessionsAsync.when(
-      loading: () => const SizedBox.shrink(),
+      loading: () => const SectionLoadingState(),
       error: (_, _) => const SectionEmptyState(
         icon: Symbols.error,
         headline: "Couldn't load upcoming sessions.",

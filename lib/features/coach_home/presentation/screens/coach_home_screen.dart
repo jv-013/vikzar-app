@@ -10,10 +10,12 @@ import '../../../../routing/app_router.dart';
 import '../../../../shared/models/workspace_type.dart';
 import '../../../../shared/providers/current_app_user_provider.dart';
 import '../../../../shared/widgets/fade_scale_in.dart';
-import '../../../../shared/widgets/notification_timeline_card.dart';
+import '../../../../shared/widgets/recent_activity_feed.dart';
 import '../../../../shared/widgets/section_empty_state.dart';
 import '../../../alerts/presentation/controllers/alerts_controller.dart';
+import '../../../live_monitoring/presentation/controllers/live_monitoring_controller.dart';
 import '../../../notifications/presentation/controllers/notifications_controller.dart';
+import '../../../raz/presentation/widgets/raz_daily_brief_card.dart';
 import '../../../sessions/domain/models/planned_session.dart';
 import '../../../sessions/presentation/controllers/planned_sessions_controller.dart';
 import '../../../team/presentation/controllers/team_roster_controller.dart';
@@ -26,12 +28,19 @@ import '../controllers/squad_summary_controller.dart';
 /// Reports, Recent Team Activity, Quick Actions. Deliberately a different
 /// rhythm from Player Home — team-level, not a personal instrument panel.
 ///
-/// Today's Squad, Today's Sessions, Active Alerts, and Recent Team
-/// Activity are all genuinely real, aggregated signals — never a
-/// fabricated count. Connected Pods and Recent Reports remain honest
-/// placeholders: no device-telemetry aggregation view or reports pipeline
-/// exists yet (the same "schema ready, no UI to bind to nothing" reasoning
-/// Phase 11's battery-architecture pass used).
+/// Today's Squad, Today's Sessions, Active Alerts, Recent Team Activity,
+/// and (added this phase) the live-session entry banner are all genuinely
+/// real, aggregated signals — never a fabricated count. Connected Pods and
+/// Recent Reports remain honest placeholders: no device-pairing view or
+/// reports pipeline exists yet (the same "schema ready, no UI to bind to
+/// nothing" reasoning Phase 11's battery-architecture pass used).
+///
+/// The live-session banner (real, this phase): watches
+/// `teams/{teamId}/liveMonitoring` directly and, per
+/// DESIGN_SPECIFICATION.md's own flow diagram
+/// (`CHome -->|"session is live" banner| LiveMon`), only renders when that
+/// collection is genuinely non-empty — pushing `AppRoute.coachLivePath`
+/// completes the Hardware -> ... -> Firestore -> Flutter chain.
 class CoachHomeScreen extends ConsumerWidget {
   const CoachHomeScreen({super.key});
 
@@ -64,8 +73,11 @@ class CoachHomeScreen extends ConsumerWidget {
                   ),
                 ),
               ],
+              const SizedBox(height: SpacingTokens.space16),
+              const RazDailyBriefCard(workspace: WorkspaceType.coach),
               const SizedBox(height: SpacingTokens.space24),
               _TodaysSquadCard(teamId: teamId),
+              const _LiveSessionBanner(),
               const SizedBox(height: SpacingTokens.space32),
               Text("Today's Sessions", style: theme.textTheme.titleLarge),
               const SizedBox(height: SpacingTokens.space8),
@@ -88,39 +100,11 @@ class CoachHomeScreen extends ConsumerWidget {
                 headline: 'No reports yet.',
               ),
               const SizedBox(height: SpacingTokens.space32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Recent Team Activity', style: theme.textTheme.titleLarge),
-                  TextButton(
-                    onPressed: () =>
-                        context.push(AppRoute.notificationsPath(WorkspaceType.coach)),
-                    child: const Text('View All'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: SpacingTokens.space8),
-              notificationsAsync.when(
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => const SizedBox.shrink(),
-                data: (notifications) {
-                  if (notifications.isEmpty) {
-                    return const SectionEmptyState(
-                      icon: Symbols.timeline,
-                      headline: 'No activity yet.',
-                      body: "This will fill in once your team's training data "
-                          'starts flowing.',
-                    );
-                  }
-                  return Column(
-                    children: [
-                      for (final notification in notifications.take(2)) ...[
-                        NotificationTimelineCard(notification: notification),
-                        const SizedBox(height: SpacingTokens.space12),
-                      ],
-                    ],
-                  );
-                },
+              RecentActivityFeed(
+                title: 'Recent Team Activity',
+                emptyBody: "This will fill in once your team's training data starts flowing.",
+                notificationsAsync: notificationsAsync,
+                onViewAll: () => context.push(AppRoute.notificationsPath(WorkspaceType.coach)),
               ),
               const SizedBox(height: SpacingTokens.space32),
               Text('Quick Actions', style: theme.textTheme.titleLarge),
@@ -229,6 +213,55 @@ class _SquadCount extends StatelessWidget {
   }
 }
 
+/// Only renders when `teams/{teamId}/liveMonitoring` is genuinely
+/// non-empty — no banner at all otherwise (loading/error/no-session all
+/// collapse to nothing here, the same "render nothing rather than a
+/// fabricated state" treatment [notificationsAsync]'s loading/error
+/// branches already use above).
+class _LiveSessionBanner extends ConsumerWidget {
+  const _LiveSessionBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final liveAsync = ref.watch(liveMonitoringControllerProvider);
+    final players = liveAsync.value?.fold(onSuccess: (players) => players, onFailure: (_) => null);
+
+    if (players == null || players.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: SpacingTokens.space16),
+      child: InkWell(
+        onTap: () => context.push(AppRoute.coachLivePath),
+        borderRadius: RadiusTokens.mediumRadius,
+        child: Container(
+          padding: const EdgeInsets.all(SpacingTokens.space16),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondary.withValues(alpha: 0.16),
+            borderRadius: RadiusTokens.mediumRadius,
+          ),
+          child: Row(
+            children: [
+              Icon(Symbols.sensors, color: theme.colorScheme.secondary),
+              const SizedBox(width: SpacingTokens.space12),
+              Expanded(
+                child: Text(
+                  'Session is live — ${players.length} '
+                  '${players.length == 1 ? 'player' : 'players'} tracked',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.secondary,
+                  ),
+                ),
+              ),
+              Icon(Symbols.chevron_right, color: theme.colorScheme.secondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TodaysSessionsSection extends ConsumerWidget {
   const _TodaysSessionsSection({required this.teamId});
 
@@ -244,6 +277,10 @@ class _TodaysSessionsSection extends ConsumerWidget {
     }
     final sessionsAsync = ref.watch(upcomingPlannedSessionsProvider(teamId!));
     return sessionsAsync.when(
+      // Deliberately quiet, not a SectionLoadingState — a secondary
+      // section below several other independent async cards on an
+      // already-rendered Coach Home screen; see RecentActivityFeed's doc
+      // comment for the same reasoning applied here.
       loading: () => const SizedBox.shrink(),
       error: (_, _) => const SizedBox.shrink(),
       data: (result) => result.fold(

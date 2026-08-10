@@ -7,12 +7,14 @@ import '../../../../design_system/components/vikzar_bottom_sheet.dart';
 import '../../../../design_system/components/vikzar_list_row.dart';
 import '../../../../design_system/components/vikzar_section_header.dart';
 import '../../../../design_system/components/vikzar_segmented_control.dart';
+import '../../../../design_system/theme/theme_mode_provider.dart';
 import '../../../../design_system/tokens/spacing.dart';
 import '../../../../routing/app_router.dart';
 import '../../../../shared/models/workspace_type.dart';
 import '../../../../shared/widgets/fade_scale_in.dart';
 import '../../../auth/data/repositories/auth_repository_impl.dart';
 import '../../../auth/domain/models/auth_state.dart';
+import '../../../music/domain/models/music_provider_type.dart';
 import '../../../raz/data/providers/raz_speech_providers.dart';
 import '../../../raz/domain/models/raz_voice_option.dart';
 import '../../../raz/presentation/controllers/raz_voice_settings_controller.dart';
@@ -33,6 +35,7 @@ class SettingsScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final authState = ref.watch(authStateProvider).value;
     final email = authState is Authenticated ? authState.email : null;
+    final themeMode = ref.watch(themeModeProvider);
     final voiceSettings = ref.watch(razVoiceSettingsControllerProvider);
     final voiceSettingsNotifier = ref.read(razVoiceSettingsControllerProvider.notifier);
 
@@ -56,6 +59,39 @@ class SettingsScreen extends ConsumerWidget {
                 subtitle: 'View your notification history',
                 onTap: () => context.push(AppRoute.notificationsPath(workspace)),
               ),
+              const VikzarSectionHeader('Appearance'),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: SpacingTokens.space16,
+                  vertical: SpacingTokens.space8,
+                ),
+                child: VikzarSegmentedControl<ThemeMode>(
+                  options: ThemeMode.values,
+                  selected: themeMode,
+                  labelBuilder: (mode) => switch (mode) {
+                    ThemeMode.system => 'System',
+                    ThemeMode.light => 'Light',
+                    ThemeMode.dark => 'Dark',
+                  },
+                  onChanged: (mode) => ref.read(themeModeProvider.notifier).setThemeMode(mode),
+                ),
+              ),
+              // Player-only extension point (Phase 19.5 Part 9) — no
+              // coach equivalent, see lib/features/music/README.md. No
+              // provider is connected yet; tapping shows what's coming
+              // rather than pretending to connect to anything real.
+              if (workspace == WorkspaceType.player)
+                VikzarListRow(
+                  leading: Icon(Symbols.music_note, color: theme.colorScheme.onSurface),
+                  title: 'Music',
+                  subtitle: MusicProviderType.none.label,
+                  onTap: () => _showInfoSheet(
+                    context,
+                    title: 'Music',
+                    body: 'Spotify and Apple Music support is coming soon — connect your '
+                        "music to play alongside your training sessions once it's ready.",
+                  ),
+                ),
               const VikzarSectionHeader('Voice'),
               VikzarListRow(
                 leading: Icon(Symbols.record_voice_over, color: theme.colorScheme.onSurface),

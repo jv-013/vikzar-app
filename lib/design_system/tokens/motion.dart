@@ -36,6 +36,13 @@ abstract final class MotionTokens {
   /// on every interaction, only first appearance.
   static const Duration softScaleIn = Duration(milliseconds: 150);
 
+  /// One cycle of a continuous, looping animation (added Phase 20, for
+  /// RAZ's listening pulse) — every other token above is a one-shot
+  /// transition duration; this is the app's first genuinely looping
+  /// animation, so it gets its own named constant rather than reusing a
+  /// transition duration for an unrelated purpose.
+  static const Duration pulseLoop = Duration(milliseconds: 1200);
+
   static const Curve entrance = Curves.easeOut;
   static const Curve exit = Curves.easeIn;
 }

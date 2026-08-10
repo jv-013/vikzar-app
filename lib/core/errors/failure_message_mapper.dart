@@ -20,12 +20,18 @@ abstract final class FailureMessageMapper {
 
   static String _authMessage(String? code) {
     return switch (code) {
-      'invalid-otp-format' => 'Enter the 6-digit code sent to your email.',
       'invalid-email' => "That email address doesn't look right.",
       'user-disabled' => 'This account has been disabled.',
       'wrong-password' ||
       'user-not-found' ||
-      'invalid-credential' => "That code didn't work. Please try again.",
+      'invalid-credential' => "We couldn't verify that. Please try again.",
+      'account-exists-with-different-credential' =>
+        'An account already exists for that email with a different sign-in '
+            'method. Try continuing with that method instead.',
+      'invalid-action-code' || 'invalid-email-link' =>
+        "That link isn't valid. Request a new one and try again.",
+      'expired-action-code' =>
+        'That link has expired. Request a new one and try again.',
       _ => 'We couldn\'t sign you in. Please try again.',
     };
   }

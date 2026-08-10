@@ -48,6 +48,9 @@ class PlannedSession {
     this.notes,
     required this.status,
     required this.createdBy,
+    this.durationMinutes,
+    this.location,
+    this.playerIds = const [],
   });
 
   final String plannedSessionId;
@@ -58,6 +61,13 @@ class PlannedSession {
   final String? notes;
   final PlannedSessionStatus status;
   final String createdBy;
+
+  /// Additive, Phase 15 — the Create Session sheet's full field set.
+  /// `playerIds` empty means "whole squad" (no explicit selection made),
+  /// never fabricated to look like a real roster subset.
+  final int? durationMinutes;
+  final String? location;
+  final List<String> playerIds;
 
   /// Expects [data]'s `scheduledAt` already normalized to a plain
   /// [DateTime] — [PlannedSessionRepositoryImpl] does that conversion
@@ -73,6 +83,9 @@ class PlannedSession {
       notes: data['notes'] as String?,
       status: PlannedSessionStatus.fromFirestoreKey(data['status'] as String?),
       createdBy: data['createdBy'] as String? ?? '',
+      durationMinutes: (data['durationMinutes'] as num?)?.toInt(),
+      location: data['location'] as String?,
+      playerIds: (data['playerIds'] as List<dynamic>?)?.cast<String>() ?? const [],
     );
   }
 }

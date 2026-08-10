@@ -1,6 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
-import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,21 +9,27 @@ import '../../../../core/errors/failure.dart';
 import '../../../../core/errors/failure_message_mapper.dart';
 import '../../../../design_system/components/vikzar_button.dart';
 import '../../../../design_system/components/vikzar_icon.dart';
-import '../../../../design_system/components/vikzar_otp_field.dart';
 import '../../../../design_system/components/vikzar_text_field.dart';
 import '../../../../design_system/tokens/motion.dart';
 import '../../../../design_system/tokens/spacing.dart';
+import '../../../../services/deep_links/deep_link_service.dart';
 import '../controllers/auth_controller.dart';
 
-const _resendCooldown = Duration(seconds: 30);
-
-/// Sign In / Create Account — DESIGN_SPECIFICATION.md §19.1, revised
-/// Phase 6: one continuous, passwordless flow — email, then a 6-digit
-/// code. No password field, no separate sign-up path, no "signed in
-/// successfully" confirmation screen. `AuthController` transparently signs
-/// in or creates the account after code verification; the router
-/// (`routing/route_guards.dart`) handles moving on once `authStateProvider`
-/// changes — this screen never navigates itself.
+/// Sign In / Create Account — DESIGN_SPECIFICATION.md §19.1, rebuilt at
+/// Phase 17 around three real Firebase Authentication providers (see
+/// DECISIONS.md's Phase 17 ADR, which supersedes ADR-044's placeholder
+/// email/code flow): Google, Apple (iOS/macOS only), and Firebase's own
+/// Email Link (magic link) as a no-password fallback. There is no
+/// password field, no 6-digit code, and no separate sign-up path — every
+/// provider transparently creates an account on first use.
+///
+/// One continuous screen, not a step machine: Google/Apple resolve in a
+/// single tap; the email-link path swaps its form for a "check your
+/// email" confirmation via [AnimatedSwitcher], matching this screen's
+/// prior step-transition treatment without reintroducing step state.
+/// `AuthController` never navigates itself — the router
+/// (`routing/route_guards.dart`) moves on once `authStateProvider`
+/// changes, for every provider alike.
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
 
@@ -32,47 +39,46 @@ class AuthScreen extends ConsumerStatefulWidget {
 
 class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _emailController = TextEditingController();
-  Timer? _cooldownTimer;
-  int _cooldownSeconds = 0;
+  StreamSubscription<Uri>? _linkSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // The email-link flow always completes here: an unauthenticated user
+    // is always routed to this screen (route_guards.dart), so this is the
+    // one place that needs to listen for the tapped link reopening the
+    // app. `linkStream` alone covers both a cold start (the plugin
+    // replays the launch link to the first stream listener) and a warm
+    // resume (a new link while already running) — subscribing to it
+    // *and* separately calling `getInitialLink()` double-processes the
+    // same cold-start link, which wastes a `signInWithEmailLink` call on
+    // a single-use code and needlessly risks an "already used" error
+    // racing the real one.
+    //
+    // Web-excluded: `app_links` reopens a *native* app via a custom
+    // scheme/universal link — meaningless on web, where following the
+    // emailed link simply loads this same page fresh at that URL, and
+    // its native event channel isn't implemented there (validated:
+    // browser testing surfaced an uncaught MissingPluginException).
+    if (!kIsWeb) {
+      _linkSubscription = ref.read(deepLinkServiceProvider).linkStream.listen(_handleIncomingLink);
+    }
+  }
+
+  void _handleIncomingLink(Uri uri) {
+    ref.read(authControllerProvider.notifier).completeSignInWithLink(uri.toString());
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
-    _cooldownTimer?.cancel();
+    _linkSubscription?.cancel();
     super.dispose();
   }
 
-  void _startCooldown() {
-    _cooldownTimer?.cancel();
-    setState(() => _cooldownSeconds = _resendCooldown.inSeconds);
-    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_cooldownSeconds <= 1) {
-        timer.cancel();
-        setState(() => _cooldownSeconds = 0);
-      } else {
-        setState(() => _cooldownSeconds -= 1);
-      }
-    });
-  }
-
-  Future<void> _submitEmail() async {
+  Future<void> _sendMagicLink() async {
     FocusScope.of(context).unfocus();
-    await ref
-        .read(authControllerProvider.notifier)
-        .submitEmail(_emailController.text.trim());
-    if (ref.read(authControllerProvider).step == AuthStep.otp) {
-      _startCooldown();
-    }
-  }
-
-  void _submitOtp(String code) {
-    FocusScope.of(context).unfocus();
-    ref.read(authControllerProvider.notifier).submitOtp(code);
-  }
-
-  Future<void> _resend() async {
-    await ref.read(authControllerProvider.notifier).resendOtp();
-    _startCooldown();
+    await ref.read(authControllerProvider.notifier).sendMagicLink(_emailController.text.trim());
   }
 
   @override
@@ -82,6 +88,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final errorText = flowState.failure == null
         ? null
         : FailureMessageMapper.toMessage(flowState.failure as Failure);
+    final isApplePlatform = !kIsWeb && (Platform.isIOS || Platform.isMacOS);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -90,9 +97,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: SpacingTokens.space24,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.space24),
               child: AnimatedSwitcher(
                 duration: MotionTokens.pageTransition,
                 switchInCurve: MotionTokens.entrance,
@@ -107,24 +112,28 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     child: child,
                   ),
                 ),
-                child: flowState.step == AuthStep.email
-                    ? _EmailStep(
-                        key: const ValueKey(AuthStep.email),
-                        controller: _emailController,
+                child: flowState.magicLinkSent
+                    ? _CheckYourEmailStep(
+                        key: const ValueKey('check-email'),
+                        email: flowState.pendingEmail,
                         isLoading: flowState.isSubmitting,
                         errorText: errorText,
-                        onSubmit: _submitEmail,
-                      )
-                    : _OtpStep(
-                        key: const ValueKey(AuthStep.otp),
-                        email: flowState.email,
-                        isLoading: flowState.isSubmitting,
-                        errorText: errorText,
-                        cooldownSeconds: _cooldownSeconds,
-                        onCompleted: _submitOtp,
-                        onResend: _resend,
+                        onResend: () =>
+                            ref.read(authControllerProvider.notifier).resendMagicLink(),
                         onEditEmail: () =>
                             ref.read(authControllerProvider.notifier).editEmail(),
+                      )
+                    : _SignInStep(
+                        key: const ValueKey('sign-in'),
+                        emailController: _emailController,
+                        isLoading: flowState.isSubmitting,
+                        errorText: errorText,
+                        showApple: isApplePlatform,
+                        onGoogle: () =>
+                            ref.read(authControllerProvider.notifier).signInWithGoogle(),
+                        onApple: () =>
+                            ref.read(authControllerProvider.notifier).signInWithApple(),
+                        onSendMagicLink: _sendMagicLink,
                       ),
               ),
             ),
@@ -135,19 +144,25 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   }
 }
 
-class _EmailStep extends StatelessWidget {
-  const _EmailStep({
+class _SignInStep extends StatelessWidget {
+  const _SignInStep({
     super.key,
-    required this.controller,
+    required this.emailController,
     required this.isLoading,
     required this.errorText,
-    required this.onSubmit,
+    required this.showApple,
+    required this.onGoogle,
+    required this.onApple,
+    required this.onSendMagicLink,
   });
 
-  final TextEditingController controller;
+  final TextEditingController emailController;
   final bool isLoading;
   final String? errorText;
-  final VoidCallback onSubmit;
+  final bool showApple;
+  final VoidCallback onGoogle;
+  final VoidCallback onApple;
+  final VoidCallback onSendMagicLink;
 
   @override
   Widget build(BuildContext context) {
@@ -162,27 +177,55 @@ class _EmailStep extends StatelessWidget {
         Text('Sign in or create your account.', style: theme.textTheme.headlineLarge),
         const SizedBox(height: SpacingTokens.space12),
         Text(
-          'Enter your email to continue.',
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          'Get into training in seconds.',
+          style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: SpacingTokens.space32),
+        VikzarButton(
+          label: 'Continue with Google',
+          variant: VikzarButtonVariant.secondary,
+          isLoading: isLoading,
+          onPressed: isLoading ? null : onGoogle,
+        ),
+        if (showApple) ...[
+          const SizedBox(height: SpacingTokens.space12),
+          VikzarButton(
+            label: 'Continue with Apple',
+            variant: VikzarButtonVariant.secondary,
+            isLoading: isLoading,
+            onPressed: isLoading ? null : onApple,
+          ),
+        ],
+        const SizedBox(height: SpacingTokens.space24),
+        Row(
+          children: [
+            Expanded(child: Divider(color: theme.colorScheme.onSurface.withValues(alpha: 0.12))),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.space12),
+              child: Text(
+                'or',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            Expanded(child: Divider(color: theme.colorScheme.onSurface.withValues(alpha: 0.12))),
+          ],
+        ),
+        const SizedBox(height: SpacingTokens.space24),
         VikzarTextField(
           label: 'Email',
-          controller: controller,
+          controller: emailController,
           keyboardType: TextInputType.emailAddress,
           autofillHints: const [AutofillHints.email],
           enabled: !isLoading,
           errorText: errorText,
-          onSubmitted: (_) => onSubmit(),
+          onSubmitted: (_) => onSendMagicLink(),
         ),
         const SizedBox(height: SpacingTokens.space16),
         Text.rich(
           TextSpan(
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             children: const [
               TextSpan(text: "By continuing, you agree to Vikzar's "),
               TextSpan(
@@ -190,10 +233,7 @@ class _EmailStep extends StatelessWidget {
                 style: TextStyle(decoration: TextDecoration.underline),
               ),
               TextSpan(text: ' and '),
-              TextSpan(
-                text: 'Terms of Use',
-                style: TextStyle(decoration: TextDecoration.underline),
-              ),
+              TextSpan(text: 'Terms of Use', style: TextStyle(decoration: TextDecoration.underline)),
               TextSpan(text: '.'),
             ],
           ),
@@ -201,7 +241,11 @@ class _EmailStep extends StatelessWidget {
         const SizedBox(height: SpacingTokens.space32),
         Align(
           alignment: Alignment.centerRight,
-          child: VikzarButton(label: 'Continue', isLoading: isLoading, onPressed: onSubmit),
+          child: VikzarButton(
+            label: 'Email me a link',
+            isLoading: isLoading,
+            onPressed: onSendMagicLink,
+          ),
         ),
         const SizedBox(height: SpacingTokens.space64),
       ],
@@ -209,14 +253,12 @@ class _EmailStep extends StatelessWidget {
   }
 }
 
-class _OtpStep extends StatelessWidget {
-  const _OtpStep({
+class _CheckYourEmailStep extends StatelessWidget {
+  const _CheckYourEmailStep({
     super.key,
     required this.email,
     required this.isLoading,
     required this.errorText,
-    required this.cooldownSeconds,
-    required this.onCompleted,
     required this.onResend,
     required this.onEditEmail,
   });
@@ -224,16 +266,12 @@ class _OtpStep extends StatelessWidget {
   final String email;
   final bool isLoading;
   final String? errorText;
-  final int cooldownSeconds;
-  final ValueChanged<String> onCompleted;
   final VoidCallback onResend;
   final VoidCallback onEditEmail;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final canResend = cooldownSeconds == 0 && !isLoading;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -241,59 +279,42 @@ class _OtpStep extends StatelessWidget {
         const SizedBox(height: SpacingTokens.space64),
         VikzarIcon(size: 48, color: theme.colorScheme.onSurface),
         const SizedBox(height: SpacingTokens.space32),
-        Text('Enter the code we sent you.', style: theme.textTheme.headlineLarge),
+        Text('Check your email.', style: theme.textTheme.headlineLarge),
         const SizedBox(height: SpacingTokens.space12),
         Text.rich(
           TextSpan(
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             children: [
-              const TextSpan(text: "We've sent a 6-digit code to "),
-              TextSpan(
-                text: email,
-                style: TextStyle(color: theme.colorScheme.onSurface),
-              ),
-              const TextSpan(text: '. '),
-              TextSpan(
-                text: 'Edit',
-                style: TextStyle(
-                  color: theme.colorScheme.primary,
-                  decoration: TextDecoration.underline,
-                ),
-                recognizer: TapGestureRecognizer()..onTap = onEditEmail,
-              ),
+              const TextSpan(text: "We've sent a sign-in link to "),
+              TextSpan(text: email, style: TextStyle(color: theme.colorScheme.onSurface)),
+              const TextSpan(text: '. Open it on this device to continue.'),
             ],
           ),
         ),
-        const SizedBox(height: SpacingTokens.space32),
-        VikzarOtpField(
-          enabled: !isLoading,
-          errorText: errorText,
-          onCompleted: onCompleted,
-        ),
-        const SizedBox(height: SpacingTokens.space12),
-        Text(
-          "Code verification isn't live yet — any 6-digit code is "
-          'accepted while this is in development.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
+        if (errorText != null) ...[
+          const SizedBox(height: SpacingTokens.space16),
+          Text(errorText!, style: TextStyle(color: theme.colorScheme.error)),
+        ],
         const SizedBox(height: SpacingTokens.space24),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton(
-            onPressed: canResend ? onResend : null,
-            child: Text(
-              canResend ? 'Resend code' : 'Resend code in ${cooldownSeconds}s',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: canResend
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant,
+        Row(
+          children: [
+            TextButton(
+              onPressed: isLoading ? null : onResend,
+              child: Text(
+                'Resend link',
+                style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.primary),
               ),
             ),
-          ),
+            TextButton(
+              onPressed: isLoading ? null : onEditEmail,
+              child: Text(
+                'Edit email',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
         ),
         if (isLoading) ...[
           const SizedBox(height: SpacingTokens.space16),

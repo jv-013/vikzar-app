@@ -15,6 +15,7 @@ class VikzarListRow extends StatelessWidget {
     this.subtitle,
     this.trailing,
     this.onTap,
+    this.onLongPress,
     this.enabled = true,
   });
 
@@ -23,6 +24,7 @@ class VikzarListRow extends StatelessWidget {
   final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final bool enabled;
 
   @override
@@ -36,6 +38,7 @@ class VikzarListRow extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: enabled ? onTap : null,
+          onLongPress: enabled ? onLongPress : null,
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: subtitle == null ? 56 : 72),
             child: Padding(

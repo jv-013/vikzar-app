@@ -23,6 +23,8 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
   late final TextEditingController _ageController;
   late final TextEditingController _titleController;
   late final TextEditingController _clubController;
+  late final TextEditingController _licenseController;
+  late final TextEditingController _academyController;
 
   @override
   void initState() {
@@ -32,6 +34,8 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
     _ageController = TextEditingController(text: existing.age?.toString() ?? '');
     _titleController = TextEditingController(text: existing.title);
     _clubController = TextEditingController(text: existing.club);
+    _licenseController = TextEditingController(text: existing.license);
+    _academyController = TextEditingController(text: existing.academy);
   }
 
   @override
@@ -40,6 +44,8 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
     _ageController.dispose();
     _titleController.dispose();
     _clubController.dispose();
+    _licenseController.dispose();
+    _academyController.dispose();
     super.dispose();
   }
 
@@ -48,6 +54,8 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
     age: int.tryParse(_ageController.text.trim()),
     title: _titleController.text.trim(),
     club: _clubController.text.trim(),
+    license: _licenseController.text.trim(),
+    academy: _academyController.text.trim(),
   );
 
   void _continue() {
@@ -86,6 +94,16 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
           VikzarTextField(
             label: 'Club (optional)',
             controller: _clubController,
+          ),
+          const SizedBox(height: SpacingTokens.space16),
+          VikzarTextField(
+            label: 'Coaching License (optional)',
+            controller: _licenseController,
+          ),
+          const SizedBox(height: SpacingTokens.space16),
+          VikzarTextField(
+            label: 'Academy (optional)',
+            controller: _academyController,
           ),
         ],
       ),

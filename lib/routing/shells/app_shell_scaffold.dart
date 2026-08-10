@@ -63,6 +63,14 @@ class AppShellScaffold extends StatelessWidget {
         titleSpacing: SpacingTokens.space12,
         title: ProfileBadge(workspace: workspace),
         actions: [
+          // RAZ is the primary way both workspaces interact with
+          // Vikzar, so its entry point sits in the one bar present on
+          // every screen, not buried in a menu.
+          IconButton(
+            icon: Icon(Symbols.self_improvement, color: theme.colorScheme.onSurface),
+            tooltip: 'Ask RAZ',
+            onPressed: () => context.push(AppRoute.razPath(workspace)),
+          ),
           IconButton(
             icon: Icon(Symbols.notifications, color: theme.colorScheme.onSurface),
             tooltip: 'Notifications',
