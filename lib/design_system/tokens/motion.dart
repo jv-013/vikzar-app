@@ -43,6 +43,18 @@ abstract final class MotionTokens {
   /// transition duration for an unrelated purpose.
   static const Duration pulseLoop = Duration(milliseconds: 1200);
 
+  // ── RAZ Orb visual system (RC2.1) ─────────────────────────────────
+
+  /// Idle breathing cycle — slow, calm, "RAZ is present but resting."
+  static const Duration razBreathing = Duration(milliseconds: 3000);
+
+  /// Thinking dots orbit cycle — a bit faster than breathing to
+  /// communicate active processing.
+  static const Duration razOrbitLoop = Duration(milliseconds: 2000);
+
+  /// Speaking bounce cycle — organic, rhythmic, "RAZ is talking."
+  static const Duration razSpeakingPulse = Duration(milliseconds: 800);
+
   static const Curve entrance = Curves.easeOut;
   static const Curve exit = Curves.easeIn;
 }

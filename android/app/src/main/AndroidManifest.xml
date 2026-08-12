@@ -8,6 +8,8 @@
          notification permission at all; without it, the runtime request
          silently fails. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Required for Firebase, cloud STT, and TTS services to function. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="vikzar"
         android:name="${applicationName}"
@@ -32,6 +34,13 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- Email Magic Link App Links interception -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="vikzar-prod.firebaseapp.com" android:path="/finishSignIn"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

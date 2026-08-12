@@ -1,3 +1,5 @@
+apply(from = "force_compile_sdk.gradle")
+
 allprojects {
     repositories {
         google()
@@ -22,3 +24,4 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
+

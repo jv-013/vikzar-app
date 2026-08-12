@@ -132,6 +132,8 @@ void main() {
 
         expect(find.text('Injury Type'), findsNothing);
 
+        await tester.tap(find.text('Select Status'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Unavailable'));
         await tester.pumpAndSettle();
 
@@ -152,6 +154,8 @@ void main() {
         ),
       );
 
+      await tester.tap(find.text('Unavailable').first);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Fully Available'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Save'));

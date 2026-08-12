@@ -1,15 +1,20 @@
 import '../repositories/raz_voice_permissions.dart';
 
-/// The voice UI's entire visual state, in one place — what
-/// `RazMicPulse`/`RazVoiceModeSheet` render, and what `RazVoiceController`
-/// exposes to widgets via `ref.watch`. Populated by
-/// `RazConversationManager`, never mutated directly by a widget.
+/// The voice UI's entire visual state, in one place — what the RAZ Orb
+/// and caption render, and what `RazVoiceController` exposes to widgets
+/// via `ref.watch`. Populated by `RazConversationManager`, never mutated
+/// directly by a widget.
+///
+/// **RC2.1:** Added `wakeWordListening` for the passive-detection visual
+/// state (distinct from active listening), and explicit error states for
+/// the RAZ Orb visual system.
 class RazVoiceState {
   const RazVoiceState({
     this.isListening = false,
     this.isThinking = false,
     this.isSpeaking = false,
     this.wakeWordArmed = false,
+    this.wakeWordListening = false,
     this.permissionStatus,
     this.captionText = '',
     this.thinkingLabel = '',
@@ -23,14 +28,22 @@ class RazVoiceState {
   /// the mic is closed again by the time RAZ is "thinking."
   final bool isThinking;
   final bool isSpeaking;
+
+  /// The wake-word engine has been initialized and is ready to detect.
   final bool wakeWordArmed;
+
+  /// The wake-word engine is actively processing audio frames right now.
+  /// Distinct from [wakeWordArmed]: armed means ready; listening means
+  /// the microphone is actively being used by the wake-word detector.
+  /// Used by the RAZ Orb to show a subtle passive-awareness state.
+  final bool wakeWordListening;
 
   /// `null` until the first permission check/request happens.
   final RazPermissionStatus? permissionStatus;
 
   /// The current partial transcript while listening, or the last
   /// spoken/heard text once a turn completes — what a caption label
-  /// shows in the Voice Mode sheet.
+  /// shows beneath the RAZ Orb.
   final String captionText;
 
   /// What to show while [isThinking] — one real, honest sentence
@@ -46,6 +59,7 @@ class RazVoiceState {
     bool? isThinking,
     bool? isSpeaking,
     bool? wakeWordArmed,
+    bool? wakeWordListening,
     RazPermissionStatus? permissionStatus,
     String? captionText,
     String? thinkingLabel,
@@ -57,6 +71,7 @@ class RazVoiceState {
       isThinking: isThinking ?? this.isThinking,
       isSpeaking: isSpeaking ?? this.isSpeaking,
       wakeWordArmed: wakeWordArmed ?? this.wakeWordArmed,
+      wakeWordListening: wakeWordListening ?? this.wakeWordListening,
       permissionStatus: permissionStatus ?? this.permissionStatus,
       captionText: captionText ?? this.captionText,
       thinkingLabel: thinkingLabel ?? this.thinkingLabel,

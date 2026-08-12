@@ -16,7 +16,6 @@ import '../../../auth/data/repositories/auth_repository_impl.dart';
 import '../../../auth/domain/models/auth_state.dart';
 import '../../../music/domain/models/music_provider_type.dart';
 import '../../../raz/data/providers/raz_speech_providers.dart';
-import '../../../raz/domain/models/raz_voice_option.dart';
 import '../../../raz/presentation/controllers/raz_voice_settings_controller.dart';
 
 /// Settings — DESIGN_SPECIFICATION.md §19.2/§19.3 (shared layout for both
@@ -94,23 +93,12 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               const VikzarSectionHeader('Voice'),
               VikzarListRow(
-                leading: Icon(Symbols.record_voice_over, color: theme.colorScheme.onSurface),
-                title: 'Voice',
-                subtitle: 'Talk to RAZ instead of typing',
-                trailing: Switch(
-                  value: voiceSettings.enabled,
-                  onChanged: voiceSettingsNotifier.setEnabled,
-                ),
-              ),
-              VikzarListRow(
                 leading: Icon(Symbols.mic, color: theme.colorScheme.onSurface),
                 title: '"Hey Raz"',
-                subtitle: voiceSettings.enabled
-                    ? 'Uses more battery — keeps the mic on while Vikzar is open. Off by default.'
-                    : 'Turn on Voice above to enable this',
+                subtitle: 'Keeps the mic listening for "Hey Raz" while Vikzar is open. Uses more battery. Off by default.',
                 trailing: Switch(
                   value: voiceSettings.wakeWordEnabled,
-                  onChanged: voiceSettings.enabled ? voiceSettingsNotifier.setWakeWordEnabled : null,
+                  onChanged: voiceSettingsNotifier.setWakeWordEnabled,
                 ),
                 onTap: () => _showInfoSheet(
                   context,
@@ -204,41 +192,38 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-/// "RAZ Voice" — Male/Female. Only ever rendered once real, installed
-/// voices with confidently-known gender exist for *both* options (see
-/// `RazVoiceOption.gender`'s own doc comment on why gender is often
-/// unknown, e.g. on stock Android) — this widget shrinks to nothing
-/// rather than ever showing a picker that doesn't map to two genuinely
-/// distinct real voices. Both options are still RAZ: same personality,
-/// same reasoning, same content — only the installed system voice
-/// speaking it differs.
+/// "RAZ Voice" — Displays available product presets (e.g. UK English Male)
+/// that are genuinely installed on this device. If none match, shows
+/// Device Default.
 class _RazVoiceSelector extends ConsumerWidget {
   const _RazVoiceSelector();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final voicesAsync = ref.watch(razAvailableVoicesProvider);
-    final voices = voicesAsync.value;
-    if (voices == null) return const SizedBox.shrink();
-
-    RazVoiceOption? firstOf(RazVoiceGender gender) {
-      for (final voice in voices) {
-        if (voice.gender == gender) return voice;
-      }
-      return null;
-    }
-
-    final male = firstOf(RazVoiceGender.male);
-    final female = firstOf(RazVoiceGender.female);
-    if (male == null || female == null) return const SizedBox.shrink();
+    final presetsAsync = ref.watch(razAvailablePresetsProvider);
+    final availablePresets = presetsAsync.value;
+    if (availablePresets == null) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
     final voiceSettings = ref.watch(razVoiceSettingsControllerProvider);
-    final selected = voiceSettings.voiceName == male.name
-        ? RazVoiceGender.male
-        : voiceSettings.voiceName == female.name
-        ? RazVoiceGender.female
-        : null;
+
+    // If there are no resolved presets (or just one), just show device default
+    if (availablePresets.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.space16, vertical: SpacingTokens.space8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'RAZ Voice',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: SpacingTokens.space8),
+            Text('Device Default', style: theme.textTheme.bodyMedium),
+          ],
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.space16, vertical: SpacingTokens.space8),
@@ -250,13 +235,27 @@ class _RazVoiceSelector extends ConsumerWidget {
             style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: SpacingTokens.space8),
-          VikzarSegmentedControl<RazVoiceGender>(
-            options: const [RazVoiceGender.male, RazVoiceGender.female],
-            selected: selected,
-            labelBuilder: (gender) => gender == RazVoiceGender.male ? 'Male' : 'Female',
-            onChanged: (gender) {
-              final voice = gender == RazVoiceGender.male ? male : female;
-              ref.read(razVoiceSettingsControllerProvider.notifier).setVoiceName(voice.name);
+          DropdownButtonFormField<String>(
+            initialValue: voiceSettings.voiceName ?? 'default',
+            decoration: const InputDecoration(
+              contentPadding: EdgeInsets.symmetric(horizontal: SpacingTokens.space12),
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              const DropdownMenuItem(
+                value: 'default',
+                child: Text('Device Default'),
+              ),
+              ...availablePresets.map((preset) {
+                return DropdownMenuItem(
+                  value: preset.voiceName,
+                  child: Text(preset.preset.displayLabel),
+                );
+              }),
+            ],
+            onChanged: (value) {
+              final newVoiceName = value == 'default' ? null : value;
+              ref.read(razVoiceSettingsControllerProvider.notifier).setVoiceName(newVoiceName);
             },
           ),
         ],

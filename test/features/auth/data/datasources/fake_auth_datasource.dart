@@ -15,35 +15,40 @@ class FakeAuthDatasource implements AuthDatasource {
   final Map<String, String> existingAccounts = {};
 
   bool signOutCalled = false;
-  bool sendOtpCalled = false;
+  bool signInWithGoogleCalled = false;
+  bool signInWithAppleCalled = false;
+  bool sendSignInLinkCalled = false;
+  String? lastLinkSent;
 
   @override
   Stream<AuthUser?> get authStateChanges => const Stream.empty();
 
   @override
-  Future<void> sendOtp({required String email}) async {
-    sendOtpCalled = true;
+  Future<void> signInWithGoogle() async {
+    signInWithGoogleCalled = true;
   }
 
   @override
-  Future<void> signIn({required String email, required String secret}) async {
+  Future<void> signInWithApple() async {
+    signInWithAppleCalled = true;
+  }
+
+  @override
+  Future<void> sendSignInLinkToEmail(String email) async {
+    sendSignInLinkCalled = true;
+    lastLinkSent = email;
+  }
+
+  @override
+  bool isSignInWithEmailLink(String link) {
+    return link.contains('firebase');
+  }
+
+  @override
+  Future<void> signInWithEmailLink({required String email, required String emailLink}) async {
     if (!existingAccounts.containsKey(email)) {
       throw const AuthDatasourceException('user-not-found');
     }
-    if (existingAccounts[email] != secret) {
-      throw const AuthDatasourceException('wrong-password');
-    }
-  }
-
-  @override
-  Future<void> createAccount({
-    required String email,
-    required String secret,
-  }) async {
-    if (existingAccounts.containsKey(email)) {
-      throw const AuthDatasourceException('email-already-in-use');
-    }
-    existingAccounts[email] = secret;
   }
 
   @override

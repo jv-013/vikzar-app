@@ -3,13 +3,14 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../../design_system/tokens/motion.dart';
 
-enum RazMicPulseVisualState { idle, listening, thinking, speaking }
+/// The mic-pulse visual states — **RC2.1:** Added `error` and
+/// `wakeWordListening` for the complete RAZ voice lifecycle.
+enum RazMicPulseVisualState { idle, wakeWordListening, listening, thinking, speaking, error }
 
-/// The large mic affordance at the centre of Voice Mode — this app's
-/// first looping animation, and its first [MediaQuery.disableAnimations]
-/// (reduced motion) consumer. Isolated in its own widget specifically so
-/// both precedents live in one small, directly-reviewable place rather
-/// than buried inside the larger sheet.
+/// The compact mic affordance — used in the input bar at the bottom of
+/// the RAZ screen. The RAZ Orb (`raz_orb.dart`) is now the primary
+/// visual identity; this widget is secondary, providing a small tappable
+/// mic icon.
 class RazMicPulse extends StatefulWidget {
   const RazMicPulse({super.key, required this.visualState, this.onTap});
 
@@ -62,21 +63,27 @@ class _RazMicPulseState extends State<RazMicPulse> with SingleTickerProviderStat
     final theme = Theme.of(context);
     final color = switch (widget.visualState) {
       RazMicPulseVisualState.idle => theme.colorScheme.onSurfaceVariant,
+      RazMicPulseVisualState.wakeWordListening => theme.colorScheme.secondary,
       RazMicPulseVisualState.listening => theme.colorScheme.error,
       RazMicPulseVisualState.thinking => theme.colorScheme.secondary,
       RazMicPulseVisualState.speaking => theme.colorScheme.secondary,
+      RazMicPulseVisualState.error => theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
     };
     final icon = switch (widget.visualState) {
       RazMicPulseVisualState.idle => Symbols.mic_none,
+      RazMicPulseVisualState.wakeWordListening => Symbols.mic_none,
       RazMicPulseVisualState.listening => Symbols.mic,
       RazMicPulseVisualState.thinking => Symbols.self_improvement,
       RazMicPulseVisualState.speaking => Symbols.graphic_eq,
+      RazMicPulseVisualState.error => Symbols.mic_off,
     };
     final label = switch (widget.visualState) {
       RazMicPulseVisualState.idle => 'Tap to talk to RAZ',
+      RazMicPulseVisualState.wakeWordListening => 'Say "Hey Raz"',
       RazMicPulseVisualState.listening => 'Listening',
       RazMicPulseVisualState.thinking => 'RAZ is thinking',
       RazMicPulseVisualState.speaking => 'RAZ is speaking',
+      RazMicPulseVisualState.error => 'Mic unavailable',
     };
 
     return Semantics(
@@ -93,14 +100,13 @@ class _RazMicPulseState extends State<RazMicPulse> with SingleTickerProviderStat
             return Transform.scale(scale: scale, child: child);
           },
           child: Container(
-            width: 96,
-            height: 96,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: color.withValues(alpha: 0.16),
-              border: Border.all(color: color, width: 2),
+              color: color.withValues(alpha: 0.12),
             ),
-            child: Icon(icon, size: 40, color: color),
+            child: Icon(icon, size: 24, color: color),
           ),
         ),
       ),

@@ -44,10 +44,14 @@ class RazConversationState {
 /// Drives the RAZ conversation screen — the secondary, optional
 /// interface to RAZ's intelligence (the Daily Brief is primary). Every
 /// `ask` call goes through `RazRepository`, never a direct Gemini/LLM
-/// call from Flutter. Conversation state lives in memory only for this
-/// provider's lifetime (see `RazMessage`'s doc comment for why);
-/// `.family` over [RazAudience] so Player and Coach each get their own
-/// independent thread.
+/// call from Flutter. Conversation state lives in memory for this
+/// provider's lifetime; `.family` over [RazAudience] so Player and
+/// Coach each get their own independent thread.
+///
+/// **RC2.1:** No longer `autoDispose` — conversation persists when the
+/// user navigates away and returns. A `clearConversation()` method
+/// provides the "New Conversation" action. A 50-message cap prevents
+/// unbounded memory growth.
 class RazConversationController extends Notifier<RazConversationState> {
   RazConversationController(this.audience);
 
@@ -65,6 +69,15 @@ class RazConversationController extends Notifier<RazConversationState> {
     ref.watch(currentUidProvider);
     return const RazConversationState();
   }
+
+  /// Clears the current conversation thread — the "New Conversation"
+  /// action. Does not affect the user's voice settings or wake-word
+  /// state.
+  void clearConversation() {
+    state = const RazConversationState();
+  }
+
+  static const _maxMessages = 50;
 
   /// Returns the response so a caller (e.g. voice input, which needs to
   /// speak the answer back) can react to this specific call directly,
@@ -116,8 +129,12 @@ class RazConversationController extends Notifier<RazConversationState> {
 
     return result.fold(
       onSuccess: (response) {
+        var messages = [...state.messages, RazMessage.raz(response)];
+        if (messages.length > _maxMessages) {
+          messages = messages.sublist(messages.length - _maxMessages);
+        }
         state = state.copyWith(
-          messages: [...state.messages, RazMessage.raz(response)],
+          messages: messages,
           isLoading: false,
         );
         if (onSentence != null && response.text.trim().isNotEmpty) {
@@ -226,7 +243,10 @@ class RazConversationController extends Notifier<RazConversationState> {
   }
 }
 
-final razConversationControllerProvider = NotifierProvider.autoDispose
+/// **RC2.1:** No longer `autoDispose` — conversation persists across
+/// navigation. The provider only rebuilds when `currentUidProvider`
+/// changes (sign-out/sign-in).
+final razConversationControllerProvider = NotifierProvider
     .family<RazConversationController, RazConversationState, RazAudience>(
       RazConversationController.new,
     );

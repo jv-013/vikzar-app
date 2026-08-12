@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -54,12 +56,20 @@ final class InApp extends RouteDestination {
   final WorkspaceType workspace;
 }
 
+final splashMinDurationProvider = FutureProvider<void>((ref) async {
+  if (Platform.environment.containsKey('FLUTTER_TEST')) return;
+  await Future<void>.delayed(const Duration(milliseconds: 1500));
+});
+
 /// The single source of truth `redirect` reads from, per
 /// FLUTTER_ARCHITECTURE.md §4. One provider watching every relevant piece
 /// of state, recomputing automatically — `RouterRefreshNotifier` below
 /// only needs to listen to this one provider, not each dependency
 /// separately.
 final routeDestinationProvider = Provider<RouteDestination>((ref) {
+  final splashMin = ref.watch(splashMinDurationProvider);
+  if (splashMin.isLoading) return const StayOnSplash();
+
   final authAsync = ref.watch(authStateProvider);
 
   return authAsync.when(

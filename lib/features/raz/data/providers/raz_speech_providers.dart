@@ -3,16 +3,23 @@
 /// `routeToProvider`). Nothing in `RazConversationManager`,
 /// `RazVoiceController`, or any widget ever constructs
 /// `SpeechToTextRecognizer`/`FlutterTtsSynthesizer`/
-/// `ContinuousListeningWakeWordEngine` directly — every one goes through
+/// `SherpaWakeWordEngine` directly — every one goes through
 /// a `routeTo...()` function here, so replacing a provider later (a
 /// different STT/TTS engine, a dedicated hotword SDK) is a new enum
 /// case and a new class in this one file, never a change anywhere
 /// upstream.
+///
+/// **RC2.1:** Default wake-word engine changed from `platform`
+/// (continuous SpeechRecognizer loop) to `sherpa` (offline KWS SDK). 
+/// The `platform` fallback is retained for development platforms 
+/// where sherpa-onnx is unavailable (web).
 library;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/raz_voice_option.dart';
+import '../../domain/models/raz_voice_preset.dart';
 import '../../domain/repositories/raz_speech_recognizer.dart';
 import '../../domain/repositories/raz_speech_synthesizer.dart';
 import '../../domain/repositories/raz_voice_permissions.dart';
@@ -20,6 +27,8 @@ import '../../domain/repositories/raz_wake_word_engine.dart';
 import '../repositories/continuous_listening_wake_word_engine.dart';
 import '../repositories/flutter_tts_synthesizer.dart';
 import '../repositories/permission_handler_voice_permissions.dart';
+import '../repositories/sherpa_wake_word_engine.dart';
+import '../repositories/raz_voice_preset_mapper.dart';
 import '../repositories/speech_to_text_recognizer.dart';
 
 enum SpeechRecognizerProviderId { platform }
@@ -44,31 +53,25 @@ RazSpeechSynthesizer routeToSpeechSynthesizer([
   }
 }
 
-/// `porcupine` is named deliberately, not invented: Picovoice Porcupine
-/// is a real, existing dedicated wake-word SDK — the obvious next
-/// provider if this app ever needs better-than-continuous-STT wake-word
-/// accuracy or true background listening. It is **not** a dependency of
-/// this app and nothing behind this case is built — the same "named but
-/// not yet registered" pattern `aiService.ts`'s `ModelProviderId` already
-/// uses for `"claude"`/`"openai"`/`"local"`.
-enum WakeWordProviderId { platform, porcupine }
+enum WakeWordProviderId { platform, sherpa }
 
 RazWakeWordEngine routeToWakeWordEngine([
-  WakeWordProviderId preferred = WakeWordProviderId.platform,
+  WakeWordProviderId preferred = WakeWordProviderId.sherpa,
   RazSpeechRecognizer? recognizer,
 ]) {
   switch (preferred) {
+    case WakeWordProviderId.sherpa:
+      return SherpaWakeWordEngine();
     case WakeWordProviderId.platform:
       return ContinuousListeningWakeWordEngine(recognizer ?? routeToSpeechRecognizer());
-    case WakeWordProviderId.porcupine:
-      throw UnimplementedError(
-        'No wake-word provider registered for "porcupine" yet — only '
-        '"platform" (continuous on-device speech recognition) is '
-        'available today. Add a class implementing RazWakeWordEngine '
-        'wrapping the Porcupine SDK and a new case here to register '
-        'one; nothing above this file needs to change.',
-      );
   }
+}
+
+/// Selects the appropriate wake-word engine for the current platform.
+/// sherpa-onnx is used on Android/iOS/macOS/Windows.
+WakeWordProviderId _bestWakeWordProvider() {
+  if (kIsWeb) return WakeWordProviderId.platform;
+  return WakeWordProviderId.sherpa;
 }
 
 final razSpeechRecognizerProvider = Provider<RazSpeechRecognizer>((ref) => routeToSpeechRecognizer());
@@ -76,7 +79,11 @@ final razSpeechRecognizerProvider = Provider<RazSpeechRecognizer>((ref) => route
 final razSpeechSynthesizerProvider = Provider<RazSpeechSynthesizer>((ref) => routeToSpeechSynthesizer());
 
 final razWakeWordEngineProvider = Provider<RazWakeWordEngine>((ref) {
-  return routeToWakeWordEngine(WakeWordProviderId.platform, ref.watch(razSpeechRecognizerProvider));
+  final preferred = _bestWakeWordProvider();
+  return routeToWakeWordEngine(
+    preferred,
+    preferred == WakeWordProviderId.platform ? ref.watch(razSpeechRecognizerProvider) : null,
+  );
 });
 
 final razVoicePermissionsProvider = Provider<RazVoicePermissions>((ref) {
@@ -90,4 +97,12 @@ final razVoicePermissionsProvider = Provider<RazVoicePermissions>((ref) {
 /// session in any way Vikzar needs to react to live.
 final razAvailableVoicesProvider = FutureProvider<List<RazVoiceOption>>((ref) {
   return ref.watch(razSpeechSynthesizerProvider).availableVoices();
+});
+
+/// The product voice presets that are actually available on this device,
+/// resolved from the raw platform voices. Only presets with confident
+/// matches are included — never fakes availability.
+final razAvailablePresetsProvider = FutureProvider<List<ResolvedVoicePreset>>((ref) async {
+  final voices = await ref.watch(razAvailableVoicesProvider.future);
+  return resolveVoicePresets(voices);
 });

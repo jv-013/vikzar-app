@@ -8,6 +8,9 @@ import '../../domain/models/raz_voice_settings.dart';
 /// `RazConversationManager` both watch this so a change in one place
 /// (e.g. disabling the wake word in Settings) is immediately reflected
 /// wherever else it matters.
+///
+/// **RC2.1:** `setEnabled()` removed — the redundant master voice
+/// toggle is gone; push-to-talk and TTS are always available.
 class RazVoiceSettingsController extends Notifier<RazVoiceSettings> {
   @override
   RazVoiceSettings build() => ref.read(voiceSettingsStoreProvider).read();
@@ -17,8 +20,6 @@ class RazVoiceSettingsController extends Notifier<RazVoiceSettings> {
     state = next;
     ref.read(voiceSettingsStoreProvider).write(next);
   }
-
-  void setEnabled(bool value) => _update((s) => s.copyWith(enabled: value));
 
   void setWakeWordEnabled(bool value) => _update((s) => s.copyWith(wakeWordEnabled: value));
 

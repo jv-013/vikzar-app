@@ -26,7 +26,7 @@ Future<void> _pump(WidgetTester tester) async {
 void main() {
   group('CoachHomeScreen', () {
     testWidgets(
-      'renders the exact Phase 13 Dashboard section list, with honest '
+      'renders the Phase 13/15 Dashboard section list, with honest '
       'placeholders — never a fabricated squad count, session, or alert',
       (tester) async {
         await _pump(tester);
@@ -51,7 +51,11 @@ void main() {
         expect(find.text('No activity yet.'), findsOneWidget);
 
         expect(find.text('Quick Actions'), findsOneWidget);
-        expect(find.text('Create Team'), findsOneWidget);
+        // Phase 15 dead-code pass: "Create Team" was removed from Quick Actions.
+        // A coach reaching Coach Home has already created/joined a team during
+        // onboarding — the button was always a dead placeholder.
+        expect(find.text('Create Team'), findsNothing);
+        // The remaining Phase 13 Quick Actions:
         expect(find.text('Invite Player'), findsOneWidget);
         expect(find.text('View Team'), findsOneWidget);
         expect(find.text('Notifications'), findsOneWidget);
@@ -68,18 +72,29 @@ void main() {
       },
     );
 
-    testWidgets('tapping Invite Player with no team explains a team is needed first', (
-      tester,
-    ) async {
-      await _pump(tester);
+    testWidgets(
+      'Invite Player is disabled (not tappable) when there is no team yet — '
+      'Phase 15: no team → onPressed is null, no dialog or snackbar shown',
+      (tester) async {
+        await _pump(tester);
 
-      await tester.tap(find.text('Invite Player'));
-      await tester.pumpAndSettle();
+        // With teamId == null the button's onPressed is null (disabled).
+        final inviteButton = tester.widget<TextButton>(
+          find.widgetWithText(TextButton, 'Invite Player'),
+        );
+        expect(
+          inviteButton.onPressed,
+          isNull,
+          reason: 'Invite Player must be disabled when there is no team yet',
+        );
 
-      expect(
-        find.textContaining('Create a team first'),
-        findsOneWidget,
-      );
-    });
+        // Tapping a disabled button should produce no dialog or navigation.
+        await tester.tap(find.text('Invite Player'), warnIfMissed: false);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(Dialog), findsNothing);
+        expect(find.byType(SnackBar), findsNothing);
+      },
+    );
   });
 }

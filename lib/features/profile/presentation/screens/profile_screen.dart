@@ -154,46 +154,20 @@ class ProfileScreen extends ConsumerWidget {
 }
 
 List<Widget> _playerSections(BuildContext context, PlayerProfile profile) {
-  final theme = Theme.of(context);
   final showInjuryDetail =
       profile.trainingStatus != null && profile.trainingStatus != TrainingStatus.fullyAvailable;
 
   return [
-    const VikzarSectionHeader('Personal'),
-    VikzarListRow(title: 'Age', subtitle: profile.age?.toString() ?? 'Not set'),
-    const VikzarSectionHeader('Football'),
-    VikzarListRow(title: 'Level', subtitle: profile.level?.label ?? 'Not set'),
-    VikzarListRow(title: 'Playing Position', subtitle: profile.position?.label ?? 'Not set'),
-    VikzarListRow(title: 'Preferred Foot', subtitle: profile.preferredFoot?.label ?? 'Not set'),
-    const VikzarSectionHeader('Physical'),
+    const VikzarSectionHeader('Status'),
     VikzarListRow(
-      title: 'Height',
-      subtitle: profile.heightCm == null ? 'Not set' : '${profile.heightCm!.toStringAsFixed(0)} cm',
-    ),
-    VikzarListRow(
-      title: 'Weight',
-      subtitle: profile.weightKg == null ? 'Not set' : '${profile.weightKg!.toStringAsFixed(0)} kg',
-    ),
-    const VikzarSectionHeader('Training Status'),
-    Padding(
-      padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.space16),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: profile.trainingStatus == null
-            ? Text(
-                'Not set',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              )
-            : VikzarStatusChip(label: profile.trainingStatus!.label),
-      ),
+      title: 'Training Status',
+      trailing: profile.trainingStatus == null
+          ? const Text('Not set')
+          : VikzarStatusChip(label: profile.trainingStatus!.label),
     ),
     if (showInjuryDetail) ...[
-      const SizedBox(height: SpacingTokens.space16),
-      const VikzarSectionHeader('Injury Detail'),
       VikzarListRow(
-        title: 'Type',
+        title: 'Injury / Condition',
         subtitle: profile.injuryTypes.isEmpty
             ? 'Not set'
             : profile.injuryTypes.map((t) => t.label).join(', '),
@@ -203,7 +177,58 @@ List<Widget> _playerSections(BuildContext context, PlayerProfile profile) {
         subtitle: profile.recoveryTimeframe?.label ?? 'Not set',
       ),
     ],
+    const VikzarSectionHeader('Player Stats'),
+    Padding(
+      padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.space16),
+      child: Card(
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SpacingTokens.space12),
+          side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(SpacingTokens.space16),
+          child: Column(
+            children: [
+              _ProfileStatRow('Level', profile.level?.label ?? 'Not set'),
+              const Divider(height: SpacingTokens.space16),
+              _ProfileStatRow('Preferred Foot', profile.preferredFoot?.label ?? 'Not set'),
+              const Divider(height: SpacingTokens.space16),
+              _ProfileStatRow(
+                'Build',
+                '${profile.heightCm?.toStringAsFixed(0) ?? '--'} cm • ${profile.weightKg?.toStringAsFixed(0) ?? '--'} kg',
+              ),
+              const Divider(height: SpacingTokens.space16),
+              _ProfileStatRow('Age', profile.age?.toString() ?? 'Not set'),
+            ],
+          ),
+        ),
+      ),
+    ),
+    const SizedBox(height: SpacingTokens.space8),
   ];
+}
+
+class _ProfileStatRow extends StatelessWidget {
+  const _ProfileStatRow(this.label, this.value);
+  final String label;
+  final String value;
+  
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: SpacingTokens.space4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          Text(value, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
 }
 
 List<Widget> _coachAboutRows(WidgetRef ref) {

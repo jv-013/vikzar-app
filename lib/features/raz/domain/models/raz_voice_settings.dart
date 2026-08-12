@@ -6,18 +6,19 @@
 /// there is no localization infrastructure to back a real language
 /// picker yet (documented as future-only in `RAZ_VOICE_ARCHITECTURE.md`,
 /// never a fake dropdown in Settings).
+///
+/// **RC2.1:** The former `enabled` master toggle ("Voice — Talk to RAZ
+/// instead of typing") has been removed — users found it redundant
+/// because RAZ already provides a microphone. Push-to-talk and TTS are
+/// always available. Only the wake-word toggle remains as a separate
+/// opt-in feature.
 class RazVoiceSettings {
   const RazVoiceSettings({
-    this.enabled = true,
     this.wakeWordEnabled = false,
     this.speechRate = 0.5,
     this.speechVolume = 1.0,
     this.voiceName,
   });
-
-  /// Master voice switch — off disables both push-to-talk and the wake
-  /// word; it never removes typed chat, which always works regardless.
-  final bool enabled;
 
   /// Off by default — an always-on-while-foregrounded microphone is an
   /// opt-in cost, never assumed.
@@ -40,14 +41,7 @@ class RazVoiceSettings {
   /// `RazSpeechSynthesizer.availableVoices` reports for this name.
   final String? voiceName;
 
-  /// **No `autoReadDailyBrief` field, deliberately.** RAZ never
-  /// auto-reads anything — content is only ever spoken when a user
-  /// explicitly taps a `RazReadAloudButton` (or the conversational mic).
-  /// A toggle to enable behavior that never happens automatically would
-  /// be exactly the kind of fake option this codebase's "no fake
-  /// options" convention rules out.
   RazVoiceSettings copyWith({
-    bool? enabled,
     bool? wakeWordEnabled,
     double? speechRate,
     double? speechVolume,
@@ -55,7 +49,6 @@ class RazVoiceSettings {
     bool clearVoiceName = false,
   }) {
     return RazVoiceSettings(
-      enabled: enabled ?? this.enabled,
       wakeWordEnabled: wakeWordEnabled ?? this.wakeWordEnabled,
       speechRate: speechRate ?? this.speechRate,
       speechVolume: speechVolume ?? this.speechVolume,

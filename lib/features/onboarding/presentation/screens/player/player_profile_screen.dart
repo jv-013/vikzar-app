@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../../../design_system/components/vikzar_bottom_sheet.dart';
 import '../../../../../design_system/components/vikzar_chip_group.dart';
+import '../../../../../design_system/components/vikzar_list_row.dart';
 import '../../../../../design_system/components/vikzar_segmented_control.dart';
 import '../../../../../design_system/components/vikzar_text_field.dart';
 import '../../../../../design_system/tokens/spacing.dart';
@@ -104,6 +107,50 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     );
   }
 
+  void _showTrainingStatusPicker(BuildContext context) {
+    VikzarBottomSheet.show<void>(
+      context,
+      builder: (context) {
+        final theme = Theme.of(context);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: SpacingTokens.space16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.space24),
+                  child: Text('Training Status', style: theme.textTheme.titleLarge),
+                ),
+                const SizedBox(height: SpacingTokens.space16),
+                ...TrainingStatus.values.map((status) {
+                  final isSelected = _trainingStatus == status;
+                  return VikzarListRow(
+                    title: status.label,
+                    subtitle: switch (status) {
+                      TrainingStatus.fullyAvailable => 'Ready for full team training and match play.',
+                      TrainingStatus.individualTraining => 'Cleared for modified or individual work only.',
+                      TrainingStatus.returnToPlay => 'In late-stage rehabilitation protocols.',
+                      TrainingStatus.unavailable => 'Currently sidelined due to injury or illness.',
+                    },
+                    trailing: isSelected
+                        ? Icon(Symbols.check, color: theme.colorScheme.secondary)
+                        : null,
+                    onTap: () {
+                      setState(() => _trainingStatus = status);
+                      Navigator.pop(context);
+                    },
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -182,13 +229,46 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
           const SizedBox(height: SpacingTokens.space24),
           Text('Training Status', style: theme.textTheme.titleSmall),
           const SizedBox(height: SpacingTokens.space8),
-          VikzarSegmentedControl<TrainingStatus>(
-            options: TrainingStatus.values,
-            labelBuilder: (status) => status.label,
-            selected: _trainingStatus,
-            onChanged: (value) => setState(() => _trainingStatus = value),
+          InkWell(
+            onTap: () => _showTrainingStatusPicker(context),
+            borderRadius: BorderRadius.circular(SpacingTokens.space8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: SpacingTokens.space16,
+                vertical: SpacingTokens.space12,
+              ),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: showErrors && _trainingStatus == null
+                      ? theme.colorScheme.error
+                      : theme.colorScheme.outline,
+                ),
+                borderRadius: BorderRadius.circular(SpacingTokens.space8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _trainingStatus?.label ?? 'Select training status',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: _trainingStatus == null
+                          ? theme.colorScheme.onSurfaceVariant
+                          : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  Icon(Symbols.arrow_drop_down, color: theme.colorScheme.onSurfaceVariant),
+                ],
+              ),
+            ),
           ),
-          ?_selectionError(context, showErrors && _trainingStatus == null),
+          if (showErrors && _trainingStatus == null)
+            Padding(
+              padding: const EdgeInsets.only(top: SpacingTokens.space4, left: SpacingTokens.space16),
+              child: Text(
+                'Required',
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+              ),
+            ),
         ],
       ),
     );

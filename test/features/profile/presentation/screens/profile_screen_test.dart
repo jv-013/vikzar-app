@@ -68,15 +68,13 @@ void main() {
           ),
         );
 
-        expect(find.text('Personal'), findsOneWidget);
-        expect(find.text('Football'), findsOneWidget);
-        expect(find.text('Physical'), findsOneWidget);
-        expect(find.text('182 cm'), findsOneWidget);
-        expect(find.text('78 kg'), findsOneWidget);
+        expect(find.text('Status'), findsOneWidget);
+        expect(find.text('Player Stats'), findsOneWidget);
+        expect(find.text('182 cm • 78 kg'), findsOneWidget);
         expect(find.text('Fully Available'), findsOneWidget);
 
         // Fully Available: no injury-detail section.
-        expect(find.text('Injury Detail'), findsNothing);
+        expect(find.text('Injury / Condition'), findsNothing);
       },
     );
 
@@ -99,7 +97,7 @@ void main() {
           ),
         );
 
-        expect(find.text('Injury Detail'), findsOneWidget);
+        expect(find.text('Injury / Condition'), findsOneWidget);
         expect(find.text('Hamstring'), findsOneWidget);
         expect(find.text('2–4 weeks'), findsOneWidget);
       },

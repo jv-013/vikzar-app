@@ -33,6 +33,7 @@ import 'app.dart';
 /// `vikzar-prod` project.
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
+  WidgetsBinding.instance.deferFirstFrame();
 
   try {
     await Firebase.initializeApp(
@@ -53,6 +54,10 @@ Future<void> bootstrap() async {
   }
 
   final sharedPreferences = await SharedPreferences.getInstance();
+
+  // RC2.1: Intentional splash screen presentation delay.
+  await Future<void>.delayed(const Duration(milliseconds: 600));
+  WidgetsBinding.instance.allowFirstFrame();
 
   runApp(
     ProviderScope(

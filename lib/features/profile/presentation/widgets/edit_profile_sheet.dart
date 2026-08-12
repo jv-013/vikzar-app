@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../../core/errors/failure.dart';
 import '../../../../core/errors/failure_message_mapper.dart';
@@ -236,11 +237,61 @@ class _EditPlayerProfileFormState extends ConsumerState<_EditPlayerProfileForm> 
             const SizedBox(height: SpacingTokens.space20),
             Text('Training Status', style: theme.textTheme.titleSmall),
             const SizedBox(height: SpacingTokens.space8),
-            VikzarSegmentedControl<TrainingStatus>(
-              options: TrainingStatus.values,
-              labelBuilder: (status) => status.label,
-              selected: _trainingStatus,
-              onChanged: (value) => setState(() => _trainingStatus = value),
+            OutlinedButton(
+              onPressed: () {
+                VikzarBottomSheet.show<void>(
+                  context,
+                  builder: (context) {
+                    final bottomSheetTheme = Theme.of(context);
+                    return SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: SpacingTokens.space16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.space24),
+                              child: Text('Training Status', style: bottomSheetTheme.textTheme.titleLarge),
+                            ),
+                            const SizedBox(height: SpacingTokens.space16),
+                            ...TrainingStatus.values.map((status) {
+                              final isSelected = _trainingStatus == status;
+                              return ListTile(
+                                title: Text(status.label),
+                                subtitle: Text(
+                                  switch (status) {
+                                    TrainingStatus.fullyAvailable => 'Ready for full team training and match play.',
+                                    TrainingStatus.individualTraining => 'Cleared for modified or individual work only.',
+                                    TrainingStatus.returnToPlay => 'In late-stage rehabilitation protocols.',
+                                    TrainingStatus.unavailable => 'Currently sidelined due to injury or illness.',
+                                  },
+                                  style: bottomSheetTheme.textTheme.bodySmall,
+                                ),
+                                trailing: isSelected
+                                    ? Icon(Symbols.check, color: bottomSheetTheme.colorScheme.secondary)
+                                    : null,
+                                onTap: () {
+                                  setState(() => _trainingStatus = status);
+                                  Navigator.pop(context);
+                                },
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_trainingStatus?.label ?? 'Select Status'),
+                  const SizedBox(width: SpacingTokens.space8),
+                  const Icon(Symbols.expand_more, size: 16),
+                ],
+              ),
             ),
             VikzarExpandableSection(
               expanded: _showInjuryDetail,

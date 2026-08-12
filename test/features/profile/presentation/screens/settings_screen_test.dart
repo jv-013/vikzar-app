@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:vikzar/design_system/theme/app_theme.dart';
 import 'package:vikzar/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:vikzar/features/auth/domain/models/auth_state.dart';
 import 'package:vikzar/features/profile/presentation/screens/settings_screen.dart';
+import 'package:vikzar/services/local_storage/shared_preferences_provider.dart';
 import 'package:vikzar/shared/models/workspace_type.dart';
 
 Future<void> _pump(WidgetTester tester) async {
@@ -24,9 +26,18 @@ Future<void> _pump(WidgetTester tester) async {
     ],
   );
 
+  tester.view.physicalSize = const Size(800, 2000);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  SharedPreferences.setMockInitialValues({});
+  final prefs = await SharedPreferences.getInstance();
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
         authStateProvider.overrideWith(
           (ref) => Stream.value(const Authenticated(uid: 'u1', email: 'p@example.com')),
         ),
@@ -39,7 +50,7 @@ Future<void> _pump(WidgetTester tester) async {
 
 void main() {
   group('SettingsScreen', () {
-    testWidgets('shows exactly Account/Notifications/Support/Sign Out sections', (tester) async {
+    testWidgets('shows Account/Notifications/Appearance/Voice/Support/Sign Out sections', (tester) async {
       await _pump(tester);
 
       expect(find.text('Account'), findsOneWidget);
@@ -47,6 +58,8 @@ void main() {
       expect(find.text('p@example.com'), findsOneWidget);
       // "Notifications" appears twice: the section header and the row title.
       expect(find.text('Notifications'), findsNWidgets(2));
+      expect(find.text('Appearance'), findsOneWidget);
+      expect(find.text('Voice'), findsOneWidget);
       expect(find.text('Privacy'), findsOneWidget);
       // "Support" appears twice: the section header and the row title.
       expect(find.text('Support'), findsNWidgets(2));

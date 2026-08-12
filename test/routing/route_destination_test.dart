@@ -44,6 +44,7 @@ ProviderContainer _containerFor({
   WorkspaceType? activeWorkspace,
 }) {
   final overrides = [
+    splashMinDurationProvider.overrideWith((ref) => const AsyncData(null)),
     authStateProvider.overrideWith((ref) => switch (auth) {
       AsyncData(:final value) => Stream.value(value),
       AsyncError(:final error) => _erroringStream(error),

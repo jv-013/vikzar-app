@@ -27,15 +27,11 @@ void main() {
     test('maps known auth error codes to specific, calm copy', () {
       expect(
         FailureMessageMapper.toMessage(const AuthFailure(message: 'invalid-credential')),
-        "That code didn't work. Please try again.",
+        "We couldn't verify that. Please try again.",
       );
       expect(
         FailureMessageMapper.toMessage(const AuthFailure(message: 'invalid-email')),
         contains("doesn't look right"),
-      );
-      expect(
-        FailureMessageMapper.toMessage(const AuthFailure(message: 'invalid-otp-format')),
-        contains('6-digit code'),
       );
     });
 

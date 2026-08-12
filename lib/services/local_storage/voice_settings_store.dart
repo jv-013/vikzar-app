@@ -11,12 +11,16 @@ import 'shared_preferences_provider.dart';
 /// wake word is on, how fast RAZ talks) are a personal device setting,
 /// not per-account state — switching accounts on a shared device
 /// shouldn't silently change how the device behaves.
+///
+/// **RC2.1:** The former `voice_enabled` key is no longer read or
+/// written — the master voice toggle has been removed. Old keys in
+/// SharedPreferences are simply ignored (not migrated or deleted).
 class VoiceSettingsStore {
   VoiceSettingsStore(this._prefs);
 
   final SharedPreferences _prefs;
 
-  static const _enabledKey = 'voice_enabled';
+  // Note: _enabledKey intentionally removed. Old values in prefs are ignored.
   static const _wakeWordEnabledKey = 'voice_wake_word_enabled';
   static const _speechRateKey = 'voice_speech_rate';
   static const _speechVolumeKey = 'voice_speech_volume';
@@ -25,7 +29,6 @@ class VoiceSettingsStore {
   RazVoiceSettings read() {
     const defaults = RazVoiceSettings();
     return RazVoiceSettings(
-      enabled: _prefs.getBool(_enabledKey) ?? defaults.enabled,
       wakeWordEnabled: _prefs.getBool(_wakeWordEnabledKey) ?? defaults.wakeWordEnabled,
       speechRate: _prefs.getDouble(_speechRateKey) ?? defaults.speechRate,
       speechVolume: _prefs.getDouble(_speechVolumeKey) ?? defaults.speechVolume,
@@ -35,7 +38,6 @@ class VoiceSettingsStore {
 
   Future<void> write(RazVoiceSettings settings) async {
     await Future.wait([
-      _prefs.setBool(_enabledKey, settings.enabled),
       _prefs.setBool(_wakeWordEnabledKey, settings.wakeWordEnabled),
       _prefs.setDouble(_speechRateKey, settings.speechRate),
       _prefs.setDouble(_speechVolumeKey, settings.speechVolume),

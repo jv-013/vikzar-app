@@ -3,34 +3,28 @@ import 'dart:async';
 import '../../domain/repositories/raz_speech_recognizer.dart';
 import '../../domain/repositories/raz_wake_word_engine.dart';
 
-/// The one real [RazWakeWordEngine] implementation today. Not a
-/// dedicated hotword SDK — Vikzar has no such dependency, and none
-/// should be silently added (see `RAZ_VOICE_ARCHITECTURE.md`). Instead:
-/// repeated, bounded `speech_to_text` listening sessions, phrase-matched
-/// against partial transcripts for "hey raz" and its known
-/// near-homophones. This is a real platform capability, honestly
-/// less accurate and more battery-hungry than a dedicated wake-word
-/// model would be — exactly why this engine is foreground-only and
-/// opt-in, never a background service.
+/// **Legacy — retained as a fallback, no longer the default.**
 ///
-/// Shares the *same* [RazSpeechRecognizer] instance command capture
-/// uses (never a second concurrent microphone session) — [arm] is a
-/// no-op whenever the recognizer is already busy.
+/// The original wake-word implementation that misused Android's
+/// SpeechRecognizer for continuous detection. This caused repeated
+/// system beep sounds and unreliable wake-word detection on real
+/// Android devices. Replaced by `SherpaWakeWordEngine` as the
+/// default in RC2.1.
+///
+/// Kept for platforms where sherpa-onnx is unavailable (e.g., web),
+/// but should not be used in production Android/iOS builds.
 class ContinuousListeningWakeWordEngine implements RazWakeWordEngine {
   ContinuousListeningWakeWordEngine(this._recognizer);
 
   final RazSpeechRecognizer _recognizer;
   final _detectedController = StreamController<void>.broadcast();
+  final _errorsController = StreamController<String>.broadcast();
   StreamSubscription<String>? _partialSub;
   StreamSubscription<bool>? _listeningSub;
   bool _armed = false;
+  bool _listening = false;
   bool _awaitingHandoff = false;
 
-  /// Requires the "hey" prefix rather than matching bare "raz" — the
-  /// concrete mitigation for ADR-091's own pre-documented phonetic-
-  /// collision risk ("Raz" vs. "Red" in casual speech). A stray "red"
-  /// in ordinary conversation never matches; only a "hey ___" pattern
-  /// close to "hey raz" does.
   static const _wakePhrases = {'hey raz', 'hey ras', 'hey rad', 'a raz', 'hey res'};
 
   static const _listenWindow = Duration(seconds: 8);
@@ -40,7 +34,13 @@ class ContinuousListeningWakeWordEngine implements RazWakeWordEngine {
   Stream<void> get onWakeWordDetected => _detectedController.stream;
 
   @override
+  Stream<String> get errors => _errorsController.stream;
+
+  @override
   bool get isArmed => _armed;
+
+  @override
+  bool get isListening => _listening;
 
   @override
   Future<void> arm() async {
@@ -55,6 +55,7 @@ class ContinuousListeningWakeWordEngine implements RazWakeWordEngine {
   @override
   Future<void> disarm() async {
     _armed = false;
+    _listening = false;
     await _partialSub?.cancel();
     await _listeningSub?.cancel();
     _partialSub = null;
@@ -62,11 +63,30 @@ class ContinuousListeningWakeWordEngine implements RazWakeWordEngine {
     await _recognizer.stop();
   }
 
+  @override
+  Future<void> pause() async {
+    if (!_armed || !_listening) return;
+    _listening = false;
+    await _recognizer.stop();
+  }
+
+  @override
+  Future<void> resume() async {
+    if (!_armed || _listening) return;
+    await _startCycle();
+  }
+
+  @override
+  Future<void> dispose() async {
+    await disarm();
+    await _detectedController.close();
+    await _errorsController.close();
+  }
+
   Future<void> _startCycle() async {
     if (!_armed || _awaitingHandoff || _recognizer.isListening) return;
+    _listening = true;
     await _recognizer.listen(
-      // Detection happens on partial transcripts (_checkForWakePhrase);
-      // a completed cycle with no match just ends quietly and re-arms.
       onFinalResult: (_) {},
       listenFor: _listenWindow,
       pauseFor: _pauseWindow,
@@ -74,6 +94,7 @@ class ContinuousListeningWakeWordEngine implements RazWakeWordEngine {
   }
 
   void _onListeningChanged(bool listening) {
+    _listening = listening;
     if (!listening && _armed && !_awaitingHandoff) {
       unawaited(_startCycle());
     }
@@ -84,6 +105,7 @@ class ContinuousListeningWakeWordEngine implements RazWakeWordEngine {
     final normalized = transcript.trim().toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '');
     if (_wakePhrases.any(normalized.contains)) {
       _awaitingHandoff = true;
+      _listening = false;
       unawaited(_recognizer.stop());
       _detectedController.add(null);
     }

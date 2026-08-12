@@ -63,6 +63,9 @@ void main() {
         await tester.enterText(find.widgetWithText(TextField, 'Weight (kg)'), '75');
         await tester.tap(find.text('Right'));
         await tester.tap(find.text('Midfielder'));
+        
+        await tester.tap(find.text('Select training status'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Fully Available'));
         await tester.pumpAndSettle();
 
@@ -101,6 +104,10 @@ void main() {
         );
 
         expect(find.text('Training Status'), findsOneWidget);
+        
+        await tester.tap(find.text('Select training status'));
+        await tester.pumpAndSettle();
+
         expect(find.text('Fully Available'), findsOneWidget);
         expect(find.text('Individual Training'), findsOneWidget);
         expect(find.text('Return to Play'), findsOneWidget);
